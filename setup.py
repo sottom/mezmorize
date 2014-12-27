@@ -1,31 +1,26 @@
 #!/usr/bin/env python
 """
-Flask-Cache
+Mezmorize
 -----------
 
-Adds cache support to your Flask application
+Adds function memoization support
 
 """
 
 from setuptools import setup
 
 setup(
-    name='Flask-Cache',
+    name='Mezmorize',
     version='0.13',
-    url='http://github.com/thadeusb/flask-cache',
+    url='http://github.com/kazeeki/mezmorize',
     license='BSD',
     author='Thadeus Burgess',
     author_email='thadeusb@thadeusb.com',
-    description='Adds cache support to your Flask application',
+    description='Adds function memoization support',
     long_description=__doc__,
-    packages=[
-        'flask_cache',
-    ],
+    packages=['mezmorize'],
     zip_safe=False,
     platforms='any',
-    install_requires=[
-        'Flask'
-    ],
     test_suite='test_cache',
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -39,7 +34,6 @@ setup(
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.3',
-        'Topic :: Internet :: WWW/HTTP :: Dynamic Content',
         'Topic :: Software Development :: Libraries :: Python Modules'
     ]
 )
