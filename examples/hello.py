@@ -1,50 +1,47 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+from __future__ import (
+    absolute_import, division, print_function, unicode_literals)
+
 import random
-from datetime import datetime
 
-from flask import Flask, jsonify
-from flask.ext.cache import Cache
+from os import environ
+from mezmorize import Cache
+
+if True:
+    config = {
+        'DEBUG': True,
+        'CACHE_TYPE': 'memcached',
+        'CACHE_MEMCACHED_SERVERS': [environ.get('MEMCACHE_SERVERS')]}
+else:
+    config = {'CACHE_TYPE': 'simple'}
+
+cache = Cache(**config)
 
 
-app = Flask(__name__)
-app.config.from_pyfile('hello.cfg')
-cache = Cache(app)
-
-#: This is an example of a cached view 
-@app.route('/api/now')
-@cache.cached(50)
-def current_time():
-    return str(datetime.now())
-
-#: This is an example of a cached function
-@cache.cached(key_prefix='binary')
-def random_binary():
-    return [random.randrange(0, 2) for i in range(500)]
-
-@app.route('/api/get/binary')
-def get_binary():
-    return jsonify({'data': random_binary()})
-
-#: This is an example of a memoized function
 @cache.memoize(60)
-def _add(a, b):
+def add(a, b):
     return a + b + random.randrange(0, 1000)
 
+
 @cache.memoize(60)
-def _sub(a, b):
+def sub(a, b):
     return a - b - random.randrange(0, 1000)
 
-@app.route('/api/add/<int:a>/<int:b>')
-def add(a, b):
-    return str(_add(a, b))
 
-@app.route('/api/sub/<int:a>/<int:b>')
-def sub(a, b):
-    return str(_sub(a, b))
-
-@app.route('/api/cache/delete')
 def delete_cache():
-    cache.delete_memoized('_add', '_sub')
-    return 'OK'
+    cache.delete_memoized(add)
+    cache.delete_memoized(sub)
+    return 'caches deleted'
+
 
 if __name__ == '__main__':
-    app.run()
+    print('Initial add(2, 5): %s' % add(2, 5))
+    print('Memoized add(2, 5): %s' % add(2, 5))
+    print('Initial sub(2, 5): %s' % sub(2, 5))
+    print('Memoized (sub(2, 5): %s' % sub(2, 5))
+    print('Delete all caches')
+    delete_cache()
+    print('Initial add(2, 5): %s' % add(2, 5))
+    print('Initial sub(2, 5): %s' % sub(2, 5))
