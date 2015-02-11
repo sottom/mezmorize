@@ -351,7 +351,7 @@ class Cache(object):
                           new string to be used as the function name. If not
                           set then the function name is used.
         :param unless: Default None. Cache will *always* execute the caching
-                       facilities unelss this callable is true.
+                       facilities unless this callable is true.
                        This will bypass the caching entirely.
 
         .. versionadded:: 0.5
