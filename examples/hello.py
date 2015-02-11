@@ -33,7 +33,7 @@ def sub(a, b):
 def delete_cache():
     cache.delete_memoized(add)
     cache.delete_memoized(sub)
-    return 'OK'
+    return 'caches deleted'
 
 
 if __name__ == '__main__':
@@ -41,7 +41,7 @@ if __name__ == '__main__':
     print('Memoized add(2, 5): %s' % add(2, 5))
     print('Initial sub(2, 5): %s' % sub(2, 5))
     print('Memoized (sub(2, 5): %s' % sub(2, 5))
-    # print('Delete all caches')
-    # delete_cache()
+    print('Delete all caches')
+    delete_cache()
     print('Initial add(2, 5): %s' % add(2, 5))
     print('Initial sub(2, 5): %s' % sub(2, 5))
