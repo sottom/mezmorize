@@ -223,10 +223,7 @@ class Cache(object):
 
             #: this should have to be after version_data, so that it
             #: does not break the delete_memoized functionality.
-            if callable(make_name):
-                altfname = make_name(fname)
-            else:
-                altfname = fname
+            altfname = make_name(fname) if callable(make_name) else fname
 
             if callable(f):
                 keyargs, keykwargs = self._memoize_kwargs_to_args(

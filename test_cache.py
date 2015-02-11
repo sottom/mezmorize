@@ -372,9 +372,10 @@ class CacheTestCase(unittest.TestCase):
 if 'TRAVIS' in os.environ:
     try:
         import redis
-        has_redis = True
     except ImportError:
         has_redis = False
+    else:
+        has_redis = True
 
     if sys.version_info <= (2, 7):
 
