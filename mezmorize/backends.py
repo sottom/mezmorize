@@ -29,20 +29,23 @@ def simple(config, *args, **kwargs):
 
 
 def memcached(config, *args, **kwargs):
-    args = chain(args, [config['CACHE_MEMCACHED_SERVERS']])
-    kwargs.update({'key_prefix': config['CACHE_KEY_PREFIX']})
+    kwargs.update(
+        {
+            'servers': config['CACHE_MEMCACHED_SERVERS'],
+            'key_prefix': config['CACHE_KEY_PREFIX']})
+
     return MemcachedCache(*args, **kwargs)
 
 
-def saslmemcached(config, *args, **kwargs):
-    args = chain(args, [config['CACHE_MEMCACHED_SERVERS']])
+def saslmemcached(config, **kwargs):
     kwargs.update(
         {
+            'servers': config['CACHE_MEMCACHED_SERVERS'],
             'username': config['CACHE_MEMCACHED_USERNAME'],
             'password': config['CACHE_MEMCACHED_PASSWORD'],
             'key_prefix': config['CACHE_KEY_PREFIX']})
 
-    return SASLMemcachedCache(*args, **kwargs)
+    return SASLMemcachedCache(**kwargs)
 
 
 def gaememcached(config, *args, **kwargs):
@@ -157,9 +160,9 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
 
 
 def spreadsaslmemcachedcache(config, *args, **kwargs):
-    args = chain(args, [config['CACHE_MEMCACHED_SERVERS']])
     kwargs.update(
         {
+            'servers': config['CACHE_MEMCACHED_SERVERS'],
             'username': config.get('CACHE_MEMCACHED_USERNAME'),
             'password': config.get('CACHE_MEMCACHED_PASSWORD'),
             'key_prefix': config.get('CACHE_KEY_PREFIX')})

@@ -48,11 +48,11 @@ sys.dont_write_bytecode = True
 
 setup(
     name='Mezmorize',
-    version='0.14.0',
+    version='0.14.1',
     url='http://github.com/kazeeki/mezmorize',
     license='BSD',
-    author='Thadeus Burgess',
-    author_email='thadeusb@thadeusb.com',
+    author='Reuben Cummings',
+    author_email='reubano@gmail.com',
     description='Adds function memoization support',
     long_description=__doc__,
     packages=packages,
