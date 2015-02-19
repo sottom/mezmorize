@@ -10,9 +10,9 @@ class SASLMemcachedCache(MemcachedCache):
     def __init__(self, **kwargs):
         import pylibmc
 
-        servers = kwargs.get('servers', ['127.0.0.1:11211'])
-        default_timeout = kwargs.get('default_timeout', 300)
-        key_prefix = kwargs.get('key_prefix')
+        servers = kwargs.pop('servers', ['127.0.0.1:11211'])
+        default_timeout = kwargs.pop('default_timeout', 300)
+        key_prefix = kwargs.pop('key_prefix', None)
         BaseCache.__init__(self, default_timeout)
 
         self._client = pylibmc.Client(servers, binary=True, **kwargs)
