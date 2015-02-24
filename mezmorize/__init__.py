@@ -386,7 +386,7 @@ class Cache(object):
         """
         Deletes the specified functions caches, based by given parameters.
         If parameters are given, only the functions that were memoized with
-        themwill be erased. Otherwise all versions of the caches will be
+        them will be erased. Otherwise all versions of the caches will be
         forgotten.
 
         Example::
@@ -422,7 +422,7 @@ class Cache(object):
 
         Delete memoized is also smart about instance methods vs class methods.
 
-        When passing a instancemethod, it will only clear the cache related
+        When passing an instancemethod, it will only clear the cache related
         to that instance of that object. (object uniqueness can be overridden
             by defining the __repr__ method, such as user id).
 
