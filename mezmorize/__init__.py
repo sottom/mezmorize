@@ -358,8 +358,7 @@ class Cache(object):
         def memoize(f):
             @functools.wraps(f)
             def decorated(*args, **kwargs):
-                #: bypass cache
-                if callable(unless) and unless() is True:
+                if callable(unless) and unless():  # bypass cache
                     return f(*args, **kwargs)
 
                 cache_key = decorated.make_cache_key(f, *args, **kwargs)
@@ -373,10 +372,8 @@ class Cache(object):
 
             decorated.uncached = f
             decorated.cache_timeout = timeout
-
-            decorated.make_cache_key = self._memoize_make_cache_key(
-                make_name, decorated)
-
+            m_make_cache_key = self._memoize_make_cache_key
+            decorated.make_cache_key = m_make_cache_key(make_name, decorated)
             decorated.delete_memoized = lambda: self.delete_memoized(f)
             return decorated
 
