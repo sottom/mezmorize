@@ -366,8 +366,14 @@ class Cache(object):
 
                 if rv is None:
                     rv = f(*args, **kwargs)
-                    self.cache.set(
-                        cache_key, rv, timeout=decorated.cache_timeout)
+                    kwarg = {'timeout': decorated.cache_timeout}
+                    set_cache = lambda v, k: self.cache.set(k, v, **kwarg)
+
+                    try:
+                        rv.addCallback(set_cache, cache_key)
+                    except AttributeError:
+                        set_cache(rv, cache_key)
+
                 return rv
 
             decorated.uncached = f
