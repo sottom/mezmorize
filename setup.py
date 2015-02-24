@@ -48,7 +48,7 @@ sys.dont_write_bytecode = True
 
 setup(
     name='Mezmorize',
-    version='0.14.2',
+    version='0.15.0',
     url='http://github.com/kazeeki/mezmorize',
     license='BSD',
     author='Reuben Cummings',
