@@ -358,38 +358,28 @@ class Cache(object):
         def memoize(f):
             @functools.wraps(f)
             def decorated(*args, **kwargs):
-                #: bypass cache
-                if callable(unless) and unless() is True:
+                if callable(unless) and unless():  # bypass cache
                     return f(*args, **kwargs)
 
-                # try:
                 cache_key = decorated.make_cache_key(f, *args, **kwargs)
                 rv = self.cache.get(cache_key)
-                # except Exception:
-                #     if self.config.get('DEBUG'):
-                #         raise
-                #     print(
-                #         "Exception possibly due to cache backend.")
-                #     return f(*args, **kwargs)
 
                 if rv is None:
                     rv = f(*args, **kwargs)
-                    # try:
-                    self.cache.set(
-                        cache_key, rv, timeout=decorated.cache_timeout)
-                    # except Exception:
-                    #     if self.config.get('DEBUG'):
-                    #         raise
-                    #     print(
-                    #         "Exception possibly due to cache backend.")
+                    kwarg = {'timeout': decorated.cache_timeout}
+                    set_cache = lambda v, k: self.cache.set(k, v, **kwarg)
+
+                    try:
+                        rv.addCallback(set_cache, cache_key)
+                    except AttributeError:
+                        set_cache(rv, cache_key)
+
                 return rv
 
             decorated.uncached = f
             decorated.cache_timeout = timeout
-
-            decorated.make_cache_key = self._memoize_make_cache_key(
-                make_name, decorated)
-
+            m_make_cache_key = self._memoize_make_cache_key
+            decorated.make_cache_key = m_make_cache_key(make_name, decorated)
             decorated.delete_memoized = lambda: self.delete_memoized(f)
             return decorated
 
@@ -399,7 +389,7 @@ class Cache(object):
         """
         Deletes the specified functions caches, based by given parameters.
         If parameters are given, only the functions that were memoized with
-        themwill be erased. Otherwise all versions of the caches will be
+        them will be erased. Otherwise all versions of the caches will be
         forgotten.
 
         Example::
@@ -435,7 +425,7 @@ class Cache(object):
 
         Delete memoized is also smart about instance methods vs class methods.
 
-        When passing a instancemethod, it will only clear the cache related
+        When passing an instancemethod, it will only clear the cache related
         to that instance of that object. (object uniqueness can be overridden
             by defining the __repr__ method, such as user id).
 
@@ -508,16 +498,11 @@ class Cache(object):
                 "Deleting messages by relative name is no longer"
                 " reliable, please switch to a function reference")
 
-        # try:
         if not args and not kwargs:
             self._memoize_version(f, reset=True)
         else:
             cache_key = f.make_cache_key(f.uncached, *args, **kwargs)
             self.cache.delete(cache_key)
-        # except Exception:
-        #     if self.config.get('DEBUG'):
-        #         raise
-        #     print("Exception possibly due to cache backend.")
 
     def delete_memoized_verhash(self, f, *args):
         """
@@ -536,9 +521,4 @@ class Cache(object):
                 "Deleting messages by relative name is no longer"
                 " reliable, please use a function reference")
 
-        # try:
         self._memoize_version(f, delete=True)
-        # except Exception:
-        #     if self.config.get('DEBUG'):
-        #         raise
-        #     print("Exception possibly due to cache backend.")
