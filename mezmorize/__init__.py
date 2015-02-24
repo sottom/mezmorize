@@ -362,26 +362,13 @@ class Cache(object):
                 if callable(unless) and unless() is True:
                     return f(*args, **kwargs)
 
-                # try:
                 cache_key = decorated.make_cache_key(f, *args, **kwargs)
                 rv = self.cache.get(cache_key)
-                # except Exception:
-                #     if self.config.get('DEBUG'):
-                #         raise
-                #     print(
-                #         "Exception possibly due to cache backend.")
-                #     return f(*args, **kwargs)
 
                 if rv is None:
                     rv = f(*args, **kwargs)
-                    # try:
                     self.cache.set(
                         cache_key, rv, timeout=decorated.cache_timeout)
-                    # except Exception:
-                    #     if self.config.get('DEBUG'):
-                    #         raise
-                    #     print(
-                    #         "Exception possibly due to cache backend.")
                 return rv
 
             decorated.uncached = f
@@ -508,16 +495,11 @@ class Cache(object):
                 "Deleting messages by relative name is no longer"
                 " reliable, please switch to a function reference")
 
-        # try:
         if not args and not kwargs:
             self._memoize_version(f, reset=True)
         else:
             cache_key = f.make_cache_key(f.uncached, *args, **kwargs)
             self.cache.delete(cache_key)
-        # except Exception:
-        #     if self.config.get('DEBUG'):
-        #         raise
-        #     print("Exception possibly due to cache backend.")
 
     def delete_memoized_verhash(self, f, *args):
         """
@@ -536,9 +518,4 @@ class Cache(object):
                 "Deleting messages by relative name is no longer"
                 " reliable, please use a function reference")
 
-        # try:
         self._memoize_version(f, delete=True)
-        # except Exception:
-        #     if self.config.get('DEBUG'):
-        #         raise
-        #     print("Exception possibly due to cache backend.")
