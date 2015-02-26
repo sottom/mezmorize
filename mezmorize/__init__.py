@@ -362,19 +362,22 @@ class Cache(object):
                     return f(*args, **kwargs)
 
                 cache_key = decorated.make_cache_key(f, *args, **kwargs)
-                rv = self.cache.get(cache_key)
+                value = self.cache.get(cache_key)
 
-                if rv is None:
-                    rv = f(*args, **kwargs)
+                if value is None:
+                    value = f(*args, **kwargs)
                     kwarg = {'timeout': decorated.cache_timeout}
-                    set_cache = lambda v, k: self.cache.set(k, v, **kwarg)
+
+                    def set_cache(value, key):
+                        self.cache.set(key, value, **kwarg)
+                        return value
 
                     try:
-                        rv.addCallback(set_cache, cache_key)
+                        value.addCallback(set_cache, cache_key)
                     except AttributeError:
-                        set_cache(rv, cache_key)
+                        set_cache(value, cache_key)
 
-                return rv
+                return value
 
             decorated.uncached = f
             decorated.cache_timeout = timeout
