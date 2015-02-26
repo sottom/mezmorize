@@ -48,7 +48,7 @@ def function_namespace(f, *args):
 
     if instance_self and not inspect.isclass(instance_self):
         instance_token = repr(f.__self__)
-    elif args and m_args[0] == 'self':
+    elif args and m_args and m_args[0] == 'self':
         instance_token = repr(args[0])
 
     module = f.__module__
@@ -63,9 +63,9 @@ def function_namespace(f, *args):
 
         klass = klass or getattr(f, 'im_class', None)
 
-        if not klass and args and m_args[0] == 'self':
+        if not klass and args and m_args and m_args[0] == 'self':
             klass = args[0].__class__
-        elif not klass and args and m_args[0] == 'cls':
+        elif not klass and args and m_args and m_args[0] == 'cls':
             klass = args[0]
 
         name = klass.__name__ + '.' + f.__name__ if klass else f.__name__
