@@ -48,7 +48,7 @@ def function_namespace(f, *args):
 
     if instance_self and not inspect.isclass(instance_self):
         instance_token = repr(f.__self__)
-    elif args and m_args[0] == 'self':
+    elif args and m_args and m_args[0] == 'self':
         instance_token = repr(args[0])
 
     module = f.__module__
@@ -63,9 +63,9 @@ def function_namespace(f, *args):
 
         klass = klass or getattr(f, 'im_class', None)
 
-        if not klass and args and m_args[0] == 'self':
+        if not klass and args and m_args and m_args[0] == 'self':
             klass = args[0].__class__
-        elif not klass and args and m_args[0] == 'cls':
+        elif not klass and args and m_args and m_args[0] == 'cls':
             klass = args[0]
 
         name = klass.__name__ + '.' + f.__name__ if klass else f.__name__
@@ -362,19 +362,22 @@ class Cache(object):
                     return f(*args, **kwargs)
 
                 cache_key = decorated.make_cache_key(f, *args, **kwargs)
-                rv = self.cache.get(cache_key)
+                value = self.cache.get(cache_key)
 
-                if rv is None:
-                    rv = f(*args, **kwargs)
+                if value is None:
+                    value = f(*args, **kwargs)
                     kwarg = {'timeout': decorated.cache_timeout}
-                    set_cache = lambda v, k: self.cache.set(k, v, **kwarg)
+
+                    def set_cache(value, key):
+                        self.cache.set(key, value, **kwarg)
+                        return value
 
                     try:
-                        rv.addCallback(set_cache, cache_key)
+                        value.addCallback(set_cache, cache_key)
                     except AttributeError:
-                        set_cache(rv, cache_key)
+                        set_cache(value, cache_key)
 
-                return rv
+                return value
 
             decorated.uncached = f
             decorated.cache_timeout = timeout
