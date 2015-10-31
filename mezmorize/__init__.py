@@ -415,7 +415,7 @@ class Cache(object):
             43
             >>> random_func()
             43
-            >>> cache.delete_memoized('random_func')
+            >>> cache.delete_memoized(random_func)
             >>> random_func()
             16
             >>> param_func(1, 2)
@@ -424,7 +424,7 @@ class Cache(object):
             32
             >>> param_func(2, 2)
             47
-            >>> cache.delete_memoized('param_func', 1, 2)
+            >>> cache.delete_memoized(param_func, 1, 2)
             >>> param_func(1, 2)
             13
             >>> param_func(2, 2)
