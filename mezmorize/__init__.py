@@ -22,6 +22,7 @@ import logging
 import string
 import uuid
 import warnings
+import random
 
 from importlib import import_module
 from ._compat import PY2
@@ -97,7 +98,7 @@ class Cache(object):
         config.setdefault('CACHE_DIR', None)
         config.setdefault('CACHE_OPTIONS', None)
         config.setdefault('CACHE_ARGS', [])
-        config.setdefault('CACHE_TYPE', 'null')
+        config.setdefault('CACHE_TYPE', 'simple')
         config.setdefault('CACHE_NO_NULL_WARNING', False)
 
         warning = not config['CACHE_NO_NULL_WARNING']
@@ -308,18 +309,21 @@ class Cache(object):
 
         Example::
 
-            @cache.memoize(timeout=50)
-            def big_foo(a, b):
-                return a + b + random.randrange(0, 1000)
+            >>> cache = Cache()
+            >>> random.seed(10)
+            >>>
+            >>> @cache.memoize(timeout=50)
+            ... def big_foo(a, b):
+            ...     return a + b + random.randrange(0, 1000)
 
         .. code-block:: pycon
 
             >>> big_foo(5, 2)
-            753
+            578
             >>> big_foo(5, 3)
-            234
+            436
             >>> big_foo(5, 2)
-            753
+            578
 
         .. versionadded:: 0.4
             The returned decorated function now has three function attributes
@@ -396,35 +400,37 @@ class Cache(object):
         forgotten.
 
         Example::
+            >>> cache = Cache()
+            >>> random.seed(10)
+            >>>
+            >>> @cache.memoize(50)
+            ... def random_func():
+            ...    return random.randrange(1, 50)
 
-            @cache.memoize(50)
-            def random_func():
-                return random.randrange(1, 50)
-
-            @cache.memoize()
-            def param_func(a, b):
-                return a + b + random.randrange(1, 50)
+            >>> @cache.memoize()
+            ... def param_func(a, b):
+            ...    return a + b + random.randrange(1, 50)
 
         .. code-block:: pycon
 
             >>> random_func()
-            43
+            28
             >>> random_func()
-            43
-            >>> cache.delete_memoized('random_func')
+            28
+            >>> cache.delete_memoized(random_func)
             >>> random_func()
-            16
+            22
             >>> param_func(1, 2)
             32
             >>> param_func(1, 2)
             32
             >>> param_func(2, 2)
-            47
-            >>> cache.delete_memoized('param_func', 1, 2)
+            15
+            >>> cache.delete_memoized(param_func, 1, 2)
             >>> param_func(1, 2)
-            13
+            43
             >>> param_func(2, 2)
-            47
+            15
 
         Delete memoized is also smart about instance methods vs class methods.
 
@@ -437,29 +443,31 @@ class Cache(object):
 
         Example::
 
-            class Adder(object):
-                @cache.memoize()
-                def add(self, b):
-                    return b + random.random()
+            >>> random.seed(10)
+            >>>
+            >>> class Adder(object):
+            ...    @cache.memoize()
+            ...    def add(self, b):
+            ...        return b + random.random()
 
         .. code-block:: pycon
 
             >>> adder1 = Adder()
             >>> adder2 = Adder()
             >>> adder1.add(3)
-            3.23214234
+            3.5714025946899133
             >>> adder2.add(3)
-            3.60898509
-            >>> cache.delete_memoized(adder.add)
+            3.4288890546751145
+            >>> cache.delete_memoized(adder1.add)
             >>> adder1.add(3)
-            3.01348673
+            3.5780913011344704
             >>> adder2.add(3)
-            3.60898509
+            3.4288890546751145
             >>> cache.delete_memoized(Adder.add)
             >>> adder1.add(3)
-            3.53235667
+            3.2060982321395017
             >>> adder2.add(3)
-            3.72341788
+            3.81332125135732
 
         :param fname: Name of the memoized function, or a reference to
             the function.

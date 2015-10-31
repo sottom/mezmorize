@@ -7,6 +7,7 @@ Adds function memoization support
 
 """
 import sys
+import re
 
 from os import path as p
 
@@ -26,7 +27,7 @@ def read(filename, parent=None):
         return ''
 
 
-def parse_requirements(filename, parent=None):
+def parse_requirements(filename, parent=None, dep=False):
     parent = (parent or __file__)
     filepath = p.join(p.dirname(parent), filename)
     content = read(filename, parent)
@@ -35,29 +36,37 @@ def parse_requirements(filename, parent=None):
         candidate = line.strip()
 
         if candidate.startswith('-r'):
-            for item in parse_requirements(candidate[2:].strip(), filepath):
+            args = [candidate[2:].strip(), filepath, dep]
+
+            for item in parse_requirements(*args):
                 yield item
-        else:
+        elif not dep and '#egg=' in candidate:
+            yield re.sub('.*#egg=(.*)-(.*)', r'\1==\2', candidate)
+        elif dep and '#egg=' in candidate:
+            yield candidate.replace('-e ', '')
+        elif not dep:
             yield candidate
+
 
 requirements = parse_requirements('requirements.txt')
 packages = find_packages(exclude=['tests'])
+readme = read('README')
 
 # Avoid byte-compiling the shipped template
 sys.dont_write_bytecode = True
 
 setup(
     name='Mezmorize',
-    version='0.15.1',
+    version='0.16.0',
     url='http://github.com/kazeeki/mezmorize',
-    license='BSD',
+    license='BSD License',
     author='Reuben Cummings',
     author_email='reubano@gmail.com',
     description='Adds function memoization support',
-    long_description=__doc__,
+    long_description=readme,
     packages=packages,
     zip_safe=False,
-    platforms='any',
+    platforms=['MacOS X', 'Windows', 'Linux'],
     test_suite='test_cache',
     classifiers=[
         'Development Status :: 4 - Beta',

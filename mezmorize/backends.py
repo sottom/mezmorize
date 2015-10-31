@@ -1,3 +1,5 @@
+import pickle
+
 from itertools import chain
 from werkzeug.contrib.cache import (
     BaseCache, NullCache, SimpleCache, MemcachedCache, GAEMemcachedCache,
