@@ -97,7 +97,7 @@ class Cache(object):
         config.setdefault('CACHE_DIR', None)
         config.setdefault('CACHE_OPTIONS', None)
         config.setdefault('CACHE_ARGS', [])
-        config.setdefault('CACHE_TYPE', 'null')
+        config.setdefault('CACHE_TYPE', 'simple')
         config.setdefault('CACHE_NO_NULL_WARNING', False)
 
         warning = not config['CACHE_NO_NULL_WARNING']
