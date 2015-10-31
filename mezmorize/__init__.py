@@ -22,6 +22,7 @@ import logging
 import string
 import uuid
 import warnings
+import random
 
 from importlib import import_module
 from ._compat import PY2
@@ -308,9 +309,11 @@ class Cache(object):
 
         Example::
 
-            @cache.memoize(timeout=50)
-            def big_foo(a, b):
-                return a + b + random.randrange(0, 1000)
+            >>> cache = Cache()
+            >>>
+            >>> @cache.memoize(timeout=50)
+            ... def big_foo(a, b):
+            ...     return a + b + random.randrange(0, 1000)
 
         .. code-block:: pycon
 
@@ -396,14 +399,15 @@ class Cache(object):
         forgotten.
 
         Example::
+            >>> cache = Cache()
+            >>>
+            >>> @cache.memoize(50)
+            ... def random_func():
+            ...    return random.randrange(1, 50)
 
-            @cache.memoize(50)
-            def random_func():
-                return random.randrange(1, 50)
-
-            @cache.memoize()
-            def param_func(a, b):
-                return a + b + random.randrange(1, 50)
+            >>> @cache.memoize()
+            ... def param_func(a, b):
+            ...    return a + b + random.randrange(1, 50)
 
         .. code-block:: pycon
 
@@ -437,10 +441,10 @@ class Cache(object):
 
         Example::
 
-            class Adder(object):
-                @cache.memoize()
-                def add(self, b):
-                    return b + random.random()
+            >>> class Adder(object):
+            ...    @cache.memoize()
+            ...    def add(self, b):
+            ...        return b + random.random()
 
         .. code-block:: pycon
 
@@ -450,7 +454,7 @@ class Cache(object):
             3.23214234
             >>> adder2.add(3)
             3.60898509
-            >>> cache.delete_memoized(adder.add)
+            >>> cache.delete_memoized(adder1.add)
             >>> adder1.add(3)
             3.01348673
             >>> adder2.add(3)
