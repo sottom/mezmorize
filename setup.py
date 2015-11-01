@@ -48,8 +48,7 @@ def parse_requirements(filename, parent=None, dep=False):
             yield candidate
 
 
-requirements = parse_requirements('requirements.txt')
-packages = find_packages(exclude=['tests'])
+requirements = list(parse_requirements('requirements.txt'))
 readme = read('README')
 
 # Avoid byte-compiling the shipped template
@@ -57,14 +56,14 @@ sys.dont_write_bytecode = True
 
 setup(
     name='Mezmorize',
-    version='0.16.0',
+    version='0.16.1',
     url='http://github.com/kazeeki/mezmorize',
     license='BSD License',
     author='Reuben Cummings',
     author_email='reubano@gmail.com',
     description='Adds function memoization support',
     long_description=readme,
-    packages=packages,
+    packages=find_packages(exclude=['tests']),
     zip_safe=False,
     platforms=['MacOS X', 'Windows', 'Linux'],
     test_suite='test_cache',
