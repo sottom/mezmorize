@@ -48,8 +48,7 @@ def parse_requirements(filename, parent=None, dep=False):
             yield candidate
 
 
-requirements = parse_requirements('requirements.txt')
-packages = find_packages(exclude=['tests'])
+requirements = list(parse_requirements('requirements.txt'))
 readme = read('README')
 
 # Avoid byte-compiling the shipped template
@@ -64,7 +63,7 @@ setup(
     author_email='reubano@gmail.com',
     description='Adds function memoization support',
     long_description=readme,
-    packages=packages,
+    packages=find_packages(exclude=['tests']),
     zip_safe=False,
     platforms=['MacOS X', 'Windows', 'Linux'],
     test_suite='test_cache',
