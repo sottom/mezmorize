@@ -14,221 +14,238 @@ import os
 import time
 import random
 
+from subprocess import call
+
+import nose.tools as nt
+
 from mezmorize import Cache, function_namespace
+from mezmorize.backends import (
+    from_url, pylibmc, SimpleCache, FileSystemCache, RedisCache,
+    MemcachedCache, SASLMemcachedCache, SpreadSASLMemcachedCache)
 
 if sys.version_info < (2, 7):
     import unittest2 as unittest
 else:
     import unittest
 
+pgrep = lambda process: call(['pgrep', process]) == 0
+has_redis = lambda: from_url and pgrep('redis')
+has_mc = lambda: pylibmc and pgrep('memcache')
+
 
 class CacheTestCase(unittest.TestCase):
     def _get_config(self):
         return {'CACHE_TYPE': 'simple'}
 
+    def test_dict_config(self):
+        nt.assert_equal(self.cache.config['CACHE_TYPE'], 'simple')
+        nt.assert_is_instance(self.cache.cache, SimpleCache)
+
     def setUp(self):
         self.config = self._get_config()
         self.cache = Cache(**self.config)
+        self.func = None
 
     def tearDown(self):
+        if self.func:
+            self.cache.delete_memoized(self.func)
+
         self.cache = {}
 
-    def test_00_set(self):
+    def test_000_set(self):
         self.cache.set('hi', 'hello')
-        assert self.cache.get('hi') == 'hello'
+        nt.assert_equal(self.cache.get('hi'), 'hello')
 
-    def test_01_add(self):
+    def test_add(self):
         self.cache.add('hi', 'hello')
-        assert self.cache.get('hi') == 'hello'
+        nt.assert_equal(self.cache.get('hi'), 'hello')
 
         self.cache.add('hi', 'foobar')
-        assert self.cache.get('hi') == 'hello'
+        nt.assert_equal(self.cache.get('hi'), 'hello')
 
-    def test_02_delete(self):
+    def test_delete(self):
         self.cache.set('hi', 'hello')
         self.cache.delete('hi')
-        assert self.cache.get('hi') is None
+        nt.assert_is_none(self.cache.get('hi'))
 
-    def test_06_memoize(self):
+    def test_memoize(self):
         @self.cache.memoize(5)
-        def big_foo(a, b):
+        def func(a, b):
             return a + b + random.randrange(0, 100000)
 
-        result = big_foo(5, 2)
+        self.func = func
+        result = func(5, 2)
         time.sleep(1)
-        assert big_foo(5, 2) == result
+        nt.assert_equal(func(5, 2), result)
 
-        result2 = big_foo(5, 3)
-        assert result2 != result
+        result2 = func(5, 3)
+        nt.assert_not_equal(result2, result)
 
         time.sleep(6)
-        assert big_foo(5, 2) != result
+        nt.assert_not_equal(func(5, 2), result)
 
         time.sleep(1)
-        assert big_foo(5, 3) != result2
+        nt.assert_not_equal(func(5, 3), result2)
 
-    def test_06a_memoize(self):
+    def test_timeout(self):
         self.config['CACHE_DEFAULT_TIMEOUT'] = 1
         self.cache = Cache(**self.config)
 
         @self.cache.memoize(50)
-        def big_foo(a, b):
+        def func(a, b):
             return a + b + random.randrange(0, 100000)
 
-        result = big_foo(5, 2)
+        self.func = func
+        result = func(5, 2)
         time.sleep(2)
-        assert big_foo(5, 2) == result
+        nt.assert_equal(func(5, 2), result)
 
-    def test_07_delete_memoize(self):
+    def test_delete_timeout(self):
         @self.cache.memoize(5)
-        def big_foo(a, b):
+        def func(a, b):
             return a + b + random.randrange(0, 100000)
 
-        result = big_foo(5, 2)
-        result2 = big_foo(5, 3)
-
+        self.func = func
+        result = func(5, 2)
+        result2 = func(5, 3)
         time.sleep(1)
 
-        assert big_foo(5, 2) == result
-        assert big_foo(5, 2) == result
-        assert big_foo(5, 3) != result
-        assert big_foo(5, 3) == result2
+        nt.assert_equal(func(5, 2), result)
+        nt.assert_equal(func(5, 2), result)
+        nt.assert_not_equal(func(5, 3), result)
+        nt.assert_equal(func(5, 3), result2)
 
-        self.cache.delete_memoized(big_foo)
-        assert big_foo(5, 2) != result
-        assert big_foo(5, 3) != result2
+        self.cache.delete_memoized(func)
+        nt.assert_not_equal(func(5, 2), result)
+        nt.assert_not_equal(func(5, 3), result2)
 
-    def test_07b_delete_memoized_verhash(self):
+    def test_delete_verhash(self):
         @self.cache.memoize(5)
-        def big_foo(a, b):
+        def func(a, b):
             return a + b + random.randrange(0, 100000)
 
-        result = big_foo(5, 2)
-        result2 = big_foo(5, 3)
-
+        self.func = func
+        result = func(5, 2)
+        result2 = func(5, 3)
         time.sleep(1)
-        assert big_foo(5, 2) == result
-        assert big_foo(5, 2) == result
-        assert big_foo(5, 3) != result
-        assert big_foo(5, 3) == result2
 
-        self.cache.delete_memoized_verhash(big_foo)
-        _fname, _fname_instance = function_namespace(big_foo)
-        version_key = self.cache._memvname(_fname)
-        assert self.cache.get(version_key) is None
-        assert big_foo(5, 2) != result
-        assert big_foo(5, 3) != result2
-        assert self.cache.get(version_key) is not None
+        nt.assert_equal(func(5, 2), result)
+        nt.assert_equal(func(5, 2), result)
+        nt.assert_not_equal(func(5, 3), result)
+        nt.assert_equal(func(5, 3), result2)
 
-    def test_08_delete_memoize(self):
+        fname = function_namespace(func)[0]
+        version_key = self.cache._memvname(fname)
+        nt.assert_is_not_none(self.cache.get(version_key))
+
+        self.cache.delete_memoized_verhash(func)
+        nt.assert_is_none(self.cache.get(version_key))
+        nt.assert_not_equal(func(5, 2), result)
+        nt.assert_not_equal(func(5, 3), result2)
+        nt.assert_is_not_none(self.cache.get(version_key))
+
+    def test_delete_rand(self):
         @self.cache.memoize()
-        def big_foo(a, b):
+        def func(a, b):
             return a + b + random.randrange(0, 100000)
 
-        result_a = big_foo(5, 1)
-        result_b = big_foo(5, 2)
-        assert big_foo(5, 1) == result_a
-        assert big_foo(5, 2) == result_b
+        self.func = func
+        result_a = func(5, 1)
+        result_b = func(5, 2)
+        nt.assert_equal(func(5, 1), result_a)
+        nt.assert_equal(func(5, 2), result_b)
 
-        self.cache.delete_memoized(big_foo, 5, 2)
-        assert big_foo(5, 1) == result_a
-        assert big_foo(5, 2) != result_b
+        self.cache.delete_memoized(func, 5, 2)
+        nt.assert_equal(func(5, 1), result_a)
+        nt.assert_not_equal(func(5, 2), result_b)
 
-        ## Cleanup bigfoo 5, 1; 5, 2 or it might conflict with
-        ## following run if it also uses memcache
-        self.cache.delete_memoized(big_foo, 5, 2)
-        self.cache.delete_memoized(big_foo, 5, 1)
-
-    def test_09_args_memoize(self):
+    def test_args(self):
         @self.cache.memoize()
-        def big_foo(a, b):
+        def func(a, b):
             return sum(a) + sum(b) + random.randrange(0, 100000)
 
-        result_a = big_foo([5, 3, 2], [1])
-        result_b = big_foo([3, 3], [3, 1])
+        self.func = func
+        result_a = func([5, 3, 2], [1])
+        result_b = func([3, 3], [3, 1])
+        nt.assert_equal(func([5, 3, 2], [1]), result_a)
+        nt.assert_equal(func([3, 3], [3, 1]), result_b)
 
-        assert big_foo([5, 3, 2], [1]) == result_a
-        assert big_foo([3, 3], [3, 1]) == result_b
+        self.cache.delete_memoized(func, [5, 3, 2], [1])
+        nt.assert_not_equal(func([5, 3, 2], [1]), result_a)
+        nt.assert_equal(func([3, 3], [3, 1]), result_b)
 
-        self.cache.delete_memoized(big_foo, [5, 3, 2], [1])
-
-        assert big_foo([5, 3, 2], [1]) != result_a
-        assert big_foo([3, 3], [3, 1]) == result_b
-
-        ## Cleanup bigfoo 5, 1; 5,2 or it might conflict with
-        ## following run if it also uses memecache
-        self.cache.delete_memoized(big_foo, [5, 3, 2], [1])
-        self.cache.delete_memoized(big_foo, [3, 3], [1])
-
-    def test_10_kwargs_memoize(self):
+    def test_kwargs(self):
         @self.cache.memoize()
-        def big_foo(a, b=None):
+        def func(a, b=None):
             return a + sum(b.values()) + random.randrange(0, 100000)
 
-        result_a = big_foo(1, dict(one=1, two=2))
-        result_b = big_foo(5, dict(three=3, four=4))
+        self.func = func
+        result_a = func(1, {'one': 1, 'two': 2})
+        result_b = func(5, {'three': 3, 'four': 4})
+        nt.assert_equal(func(1, {'one': 1, 'two': 2}), result_a)
+        nt.assert_equal(func(5, {'three': 3, 'four': 4}), result_b)
 
-        assert big_foo(1, dict(one=1, two=2)) == result_a
-        assert big_foo(5, dict(three=3, four=4)) == result_b
+        self.cache.delete_memoized(func, 1, {'one': 1, 'two': 2})
+        nt.assert_not_equal(func(1, {'one': 1, 'two': 2}), result_a)
+        nt.assert_equal(func(5, {'three': 3, 'four': 4}), result_b)
 
-        self.cache.delete_memoized(big_foo, 1, dict(one=1, two=2))
-
-        assert big_foo(1, dict(one=1, two=2)) != result_a
-        assert big_foo(5, dict(three=3, four=4)) == result_b
-
-    def test_10a_kwargonly_memoize(self):
+    def test_kwargonly(self):
         @self.cache.memoize()
-        def big_foo(a=None):
+        def func(a=None):
             if a is None:
                 a = 0
             return a + random.random()
 
-        result_a = big_foo()
-        result_b = big_foo(5)
+        self.func = func
+        result_a = func()
+        result_b = func(5)
 
-        assert big_foo() == result_a
-        assert big_foo() < 1
-        assert big_foo(5) == result_b
-        assert big_foo(5) >= 5 and big_foo(5) < 6
+        nt.assert_equal(func(), result_a)
+        nt.assert_less(func(), 1)
+        nt.assert_equal(func(5), result_b)
+        nt.assert_greater_equal(func(5), 5)
+        nt.assert_less(func(5), 6)
 
-    def test_10a_arg_kwarg_memoize(self):
+    def test_arg_kwarg(self):
         @self.cache.memoize()
-        def f(a, b, c=1):
+        def func(a, b, c=1):
             return a + b + c + random.randrange(0, 100000)
 
-        assert f(1, 2) == f(1, 2, c=1)
-        assert f(1, 2) == f(1, 2, 1)
-        assert f(1, 2) == f(1, 2)
-        assert f(1, 2, 3) != f(1, 2)
-        with self.assertRaises(TypeError):
-            f(1)
+        self.func = func
+        nt.assert_equal(func(1, 2), func(1, 2, c=1))
+        nt.assert_equal(func(1, 2), func(1, 2, 1))
+        nt.assert_equal(func(1, 2), func(1, 2))
+        nt.assert_not_equal(func(1, 2, 3), func(1, 2))
 
-    def test_10b_classarg_memoize(self):
+        with nt.assert_raises(TypeError):
+            func(1)
+
+    def test_classarg(self):
         @self.cache.memoize()
-        def bar(a):
+        def func(a):
             return a.value + random.random()
 
         class Adder(object):
             def __init__(self, value):
                 self.value = value
 
+        self.func = func
         adder = Adder(15)
         adder2 = Adder(20)
 
-        y = bar(adder)
-        z = bar(adder2)
+        y = func(adder)
+        z = func(adder2)
+        nt.assert_not_equal(y, z)
+        nt.assert_equal(func(adder), y)
+        nt.assert_not_equal(func(adder), z)
 
-        assert y != z
-        assert bar(adder) == y
-        assert bar(adder) != z
         adder.value = 14
-        assert bar(adder) == y
-        assert bar(adder) != z
+        nt.assert_equal(func(adder), y)
+        nt.assert_not_equal(func(adder), z)
+        nt.assert_not_equal(func(adder), func(adder2))
+        nt.assert_equal(func(adder2), z)
 
-        assert bar(adder) != bar(adder2)
-        assert bar(adder2) == z
-
-    def test_10c_classfunc_memoize(self):
+    def test_classfunc(self):
         class Adder(object):
             def __init__(self, initial):
                 self.initial = initial
@@ -237,15 +254,16 @@ class CacheTestCase(unittest.TestCase):
             def add(self, b):
                 return self.initial + b
 
+        self.func = Adder.add
         adder1 = Adder(1)
         adder2 = Adder(2)
 
         x = adder1.add(3)
-        assert adder1.add(3) == x
-        assert adder1.add(4) != x
-        assert adder1.add(3) != adder2.add(3)
+        nt.assert_equal(adder1.add(3), x)
+        nt.assert_not_equal(adder1.add(4), x)
+        nt.assert_not_equal(adder1.add(3), adder2.add(3))
 
-    def test_10d_classfunc_memoize_delete(self):
+    def test_delete_classfunc(self):
         class Adder(object):
             def __init__(self, initial):
                 self.initial = initial
@@ -254,194 +272,196 @@ class CacheTestCase(unittest.TestCase):
             def add(self, b):
                 return self.initial + b + random.random()
 
+        self.func = Adder.add
         adder1 = Adder(1)
         adder2 = Adder(2)
 
         a1 = adder1.add(3)
         a2 = adder2.add(3)
-
-        assert a1 != a2
-        assert adder1.add(3) == a1
-        assert adder2.add(3) == a2
+        nt.assert_not_equal(a1, a2)
+        nt.assert_equal(adder1.add(3), a1)
+        nt.assert_equal(adder2.add(3), a2)
 
         self.cache.delete_memoized(adder1.add)
-
         a3 = adder1.add(3)
         a4 = adder2.add(3)
 
-        self.assertNotEqual(a1, a3)
-        assert a1 != a3
-        self.assertEqual(a2, a4)
+        nt.assert_not_equal(a1, a3)
+        nt.assert_not_equal(a1, a3)
+        nt.assert_equal(a2, a4)
 
         self.cache.delete_memoized(Adder.add)
-
         a5 = adder1.add(3)
         a6 = adder2.add(3)
 
-        self.assertNotEqual(a5, a6)
-        self.assertNotEqual(a3, a5)
-        self.assertNotEqual(a4, a6)
+        nt.assert_not_equal(a5, a6)
+        nt.assert_not_equal(a3, a5)
+        nt.assert_not_equal(a4, a6)
 
-    def test_10e_delete_memoize_classmethod(self):
+    def test_delete_classmethod(self):
         class Mock(object):
             @classmethod
             @self.cache.memoize(5)
-            def big_foo(cls, a, b):
+            def func(cls, a, b):
                 return a + b + random.randrange(0, 100000)
 
-        result = Mock.big_foo(5, 2)
-        result2 = Mock.big_foo(5, 3)
+        self.func = Mock.func
+        result = Mock.func(5, 2)
+        result2 = Mock.func(5, 3)
         time.sleep(1)
-        assert Mock.big_foo(5, 2) == result
-        assert Mock.big_foo(5, 2) == result
-        assert Mock.big_foo(5, 3) != result
-        assert Mock.big_foo(5, 3) == result2
 
-        self.cache.delete_memoized(Mock.big_foo)
-        assert Mock.big_foo(5, 2) != result
-        assert Mock.big_foo(5, 3) != result2
+        nt.assert_equal(Mock.func(5, 2), result)
+        nt.assert_equal(Mock.func(5, 2), result)
+        nt.assert_not_equal(Mock.func(5, 3), result)
+        nt.assert_equal(Mock.func(5, 3), result2)
 
-    def test_14_memoized_multiple_arg_kwarg_calls(self):
+        self.cache.delete_memoized(Mock.func)
+        nt.assert_not_equal(Mock.func(5, 2), result)
+        nt.assert_not_equal(Mock.func(5, 3), result2)
+
+    def test_multiple_arg_kwarg_calls(self):
         @self.cache.memoize()
-        def big_foo(a, b, c=[1, 1], d=[1, 1]):
+        def func(a, b, c=[1, 1], d=[1, 1]):
             rand = random.randrange(0, 100000)
             return sum(a) + sum(b) + sum(c) + sum(d) + rand
 
-        result_a = big_foo([5, 3, 2], [1], c=[3, 3], d=[3, 3])
-        assert big_foo([5, 3, 2], [1], d=[3, 3], c=[3, 3]) == result_a
-        assert big_foo(b=[1], a=[5, 3, 2], c=[3, 3], d=[3, 3]) == result_a
-        assert big_foo([5, 3, 2], [1], [3, 3], [3, 3]) == result_a
+        self.func = func
+        expected = func([5, 3, 2], [1], c=[3, 3], d=[3, 3])
+        nt.assert_equal(func([5, 3, 2], [1], d=[3, 3], c=[3, 3]), expected)
 
-    def test_15_memoize_multiple_arg_kwarg_delete(self):
+        result = func(b=[1], a=[5, 3, 2], c=[3, 3], d=[3, 3])
+        nt.assert_equal(result, expected)
+        nt.assert_equal(func([5, 3, 2], [1], [3, 3], [3, 3]), expected)
+
+    def test_delete_multiple_arg_kwarg(self):
         @self.cache.memoize()
-        def big_foo(a, b, c=[1, 1], d=[1, 1]):
+        def func(a, b, c=[1, 1], d=[1, 1]):
             rand = random.randrange(0, 100000)
             return sum(a) + sum(b) + sum(c) + sum(d) + rand
 
-        result_a = big_foo([5, 3, 2], [1], c=[3, 3], d=[3, 3])
-        self.cache.delete_memoized(big_foo, [5, 3, 2], [1], [3, 3], [3, 3])
-        result_b = big_foo([5, 3, 2], [1], c=[3, 3], d=[3, 3])
-        assert result_a != result_b
+        self.func = func
+        result_a = func([5, 3, 2], [1], c=[3, 3], d=[3, 3])
+        self.cache.delete_memoized(func, [5, 3, 2], [1], [3, 3], [3, 3])
+        result_b = func([5, 3, 2], [1], c=[3, 3], d=[3, 3])
+        nt.assert_not_equal(result_a, result_b)
 
         self.cache.delete_memoized(
-            big_foo, [5, 3, 2], b=[1], c=[3, 3], d=[3, 3])
-        result_b = big_foo([5, 3, 2], [1], c=[3, 3], d=[3, 3])
-        assert result_a != result_b
+            func, [5, 3, 2], b=[1], c=[3, 3], d=[3, 3])
+        result_b = func([5, 3, 2], [1], c=[3, 3], d=[3, 3])
+        nt.assert_not_equal(result_a, result_b)
 
-        self.cache.delete_memoized(big_foo, [5, 3, 2], [1], c=[3, 3], d=[3, 3])
-        result_a = big_foo([5, 3, 2], [1], c=[3, 3], d=[3, 3])
-        assert result_a != result_b
+        self.cache.delete_memoized(func, [5, 3, 2], [1], c=[3, 3], d=[3, 3])
+        result_a = func([5, 3, 2], [1], c=[3, 3], d=[3, 3])
+        nt.assert_not_equal(result_a, result_b)
 
         self.cache.delete_memoized(
-            big_foo, [5, 3, 2], b=[1], c=[3, 3], d=[3, 3])
-        result_a = big_foo([5, 3, 2], [1], c=[3, 3], d=[3, 3])
-        assert result_a != result_b
+            func, [5, 3, 2], b=[1], c=[3, 3], d=[3, 3])
+        result_a = func([5, 3, 2], [1], c=[3, 3], d=[3, 3])
+        nt.assert_not_equal(result_a, result_b)
 
-        self.cache.delete_memoized(big_foo, [5, 3, 2], [1], c=[3, 3], d=[3, 3])
-        result_b = big_foo([5, 3, 2], [1], c=[3, 3], d=[3, 3])
-        assert result_a != result_b
+        self.cache.delete_memoized(func, [5, 3, 2], [1], c=[3, 3], d=[3, 3])
+        result_b = func([5, 3, 2], [1], c=[3, 3], d=[3, 3])
+        nt.assert_not_equal(result_a, result_b)
 
-        self.cache.delete_memoized(big_foo, [5, 3, 2], [1], [3, 3], [3, 3])
-        result_a = big_foo([5, 3, 2], [1], c=[3, 3], d=[3, 3])
-        assert result_a != result_b
+        self.cache.delete_memoized(func, [5, 3, 2], [1], [3, 3], [3, 3])
+        result_a = func([5, 3, 2], [1], c=[3, 3], d=[3, 3])
+        nt.assert_not_equal(result_a, result_b)
 
-    def test_16_memoize_kwargs_to_args(self):
-        def big_foo(a, b, c=None, d=None):
+    def test_kwargs_to_args(self):
+        def func(a, b, c=None, d=None):
             return sum(a) + sum(b) + random.randrange(0, 100000)
 
+        self.func = func
         expected = (1, 2, 'foo', 'bar')
 
         args, kwargs = self.cache._memoize_kwargs_to_args(
-            big_foo, 1, 2, 'foo', 'bar')
-        assert (args == expected)
+            func, 1, 2, 'foo', 'bar')
+        nt.assert_equal(args, expected)
 
         args, kwargs = self.cache._memoize_kwargs_to_args(
-            big_foo, 2, 'foo', 'bar', a=1)
-        assert (args == expected)
+            func, 2, 'foo', 'bar', a=1)
+        nt.assert_equal(args, expected)
 
         args, kwargs = self.cache._memoize_kwargs_to_args(
-            big_foo, a=1, b=2, c='foo', d='bar')
-        assert (args == expected)
+            func, a=1, b=2, c='foo', d='bar')
+        nt.assert_equal(args, expected)
 
         args, kwargs = self.cache._memoize_kwargs_to_args(
-            big_foo, d='bar', b=2, a=1, c='foo')
-        assert (args == expected)
+            func, d='bar', b=2, a=1, c='foo')
+        nt.assert_equal(args, expected)
 
         args, kwargs = self.cache._memoize_kwargs_to_args(
-            big_foo, 1, 2, d='bar', c='foo')
-        assert (args == expected)
-
-    def test_17_dict_config(self):
-        from werkzeug.contrib.cache import SimpleCache
-        cache = Cache(CACHE_TYPE='simple')
-        assert cache.config['CACHE_TYPE'] == 'simple'
-        assert isinstance(cache.cache, SimpleCache)
+            func, 1, 2, d='bar', c='foo')
+        nt.assert_equal(args, expected)
 
 
-if 'TRAVIS' in os.environ:
-    try:
-        import redis
-    except ImportError:
-        has_redis = False
-    else:
-        has_redis = True
+class FileSystemCacheTestCase(CacheTestCase):
+    def _get_config(self):
+        return {'CACHE_TYPE': 'filesystem', 'CACHE_DIR': '/tmp'}
 
-    if sys.version_info <= (2, 7):
+    def test_dict_config(self):
+        nt.assert_equal(self.cache.config['CACHE_TYPE'], 'filesystem')
+        nt.assert_is_instance(self.cache.cache, FileSystemCache)
 
-        class CacheMemcachedTestCase(CacheTestCase):
-            def _get_config(self):
-                return {'CACHE_TYPE': 'memcached'}
-
-        class SpreadCacheMemcachedTestCase(CacheTestCase):
-            def _get_config(self):
-                return {'CACHE_TYPE': 'spreadsaslmemcachedcache'}
-
-    class CacheRedisTestCase(CacheTestCase):
+if has_mc():
+    class MemcachedCacheTestCase(CacheTestCase):
         def _get_config(self):
-            return {'CACHE_TYPE': 'redis'}
+            return {
+                'CACHE_TYPE': 'memcached',
+                'CACHE_MEMCACHED_SERVERS': ['localhost:11211']}
 
-        @unittest.skipUnless(has_redis, "requires Redis")
-        def test_20_redis_url_default_db(self):
-            from werkzeug.contrib.cache import RedisCache
+        def test_dict_config(self):
+            nt.assert_equal(self.cache.config['CACHE_TYPE'], 'memcached')
+            nt.assert_is_instance(self.cache.cache, MemcachedCache)
 
-            self.config.update(
-                {
-                    'CACHE_TYPE': 'redis',
-                    'CACHE_REDIS_URL': 'redis://localhost:6379'})
-
-            cache = Cache(**self.config)
-            assert isinstance(cache.cache, RedisCache)
-            rconn = cache.cache._client.connection_pool.get_connection('foo')
-            assert rconn.db == 0
-
-        @unittest.skipUnless(has_redis, "requires Redis")
-        def test_21_redis_url_custom_db(self):
-            self.config.update(
-                {
-                    'CACHE_TYPE': 'redis',
-                    'CACHE_REDIS_URL': 'redis://localhost:6379/2'})
-
-            cache = Cache(**self.config)
-            rconn = cache.cache._client.connection_pool.get_connection('foo')
-            assert rconn.db == 2
-
-        @unittest.skipUnless(has_redis, "requires Redis")
-        def test_22_redis_url_explicit_db_arg(self):
-            self.config.update(
-                {
-                    'CACHE_TYPE': 'redis',
-                    'CACHE_REDIS_URL': 'redis://localhost:6379/2',
-                    'CACHE_REDIS_DB': 1})
-
-            cache = Cache(**self.config)
-            rconn = cache.cache._client.connection_pool.get_connection('foo')
-
-            assert rconn.db == 1
-
-    class CacheFilesystemTestCase(CacheTestCase):
+    class SASLMemcachedCacheTestCase(CacheTestCase):
         def _get_config(self):
-            return {'CACHE_TYPE': 'filesystem', 'CACHE_DIR': '/tmp'}
+            return {
+                'CACHE_TYPE': 'saslmemcached',
+                'CACHE_MEMCACHED_SERVERS': ['localhost:11211'],
+                'CACHE_MEMCACHED_USERNAME': None,
+                'CACHE_MEMCACHED_PASSWORD': None}
 
+        def test_dict_config(self):
+            nt.assert_equal(self.cache.config['CACHE_TYPE'], 'saslmemcached')
+            nt.assert_is_instance(self.cache.cache, SASLMemcachedCache)
+
+    class SpreadSASLMemcachedCacheTestCase(CacheTestCase):
+        def _get_config(self):
+            return {
+                'CACHE_TYPE': 'spreadsaslmemcachedcache',
+                'CACHE_MEMCACHED_SERVERS': ['localhost:11211']}
+
+        def test_dict_config(self):
+            CACHE_TYPE = self.cache.config['CACHE_TYPE']
+            nt.assert_equal(CACHE_TYPE, 'spreadsaslmemcachedcache')
+            nt.assert_is_instance(self.cache.cache, SpreadSASLMemcachedCache)
+else:
+    print('requires Memcache')
+
+if has_redis():
+    class RedisCacheTestCase(CacheTestCase):
+        def _get_config(self):
+            return {
+                'CACHE_TYPE': 'redis',
+                'CACHE_REDIS_URL': 'redis://localhost:6379'}
+
+        def test_dict_config(self):
+            nt.assert_equal(self.cache.config['CACHE_TYPE'], 'redis')
+            nt.assert_is_instance(self.cache.cache, RedisCache)
+
+        def test_redis_url_default_db(self):
+            client = self.cache.cache._client
+            rconn = client.connection_pool.get_connection('foo')
+            nt.assert_equal(rconn.db, 0)
+
+        def test_redis_url_custom_db(self):
+            self.config.update({'CACHE_REDIS_URL': 'redis://localhost:6379/2'})
+            cache = Cache(**self.config)
+            rconn = cache.cache._client.connection_pool.get_connection('foo')
+            nt.assert_equal(rconn.db, 2)
+else:
+    print('requires Redis')
 
 if __name__ == '__main__':
     unittest.main()

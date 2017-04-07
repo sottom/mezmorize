@@ -16,11 +16,19 @@ from werkzeug.contrib.cache import (
 
 from ._compat import range_type
 
+try:
+    import pylibmc
+except ImportError:
+    pylibmc = None
+
+try:
+    from redis import from_url
+except ImportError:
+    from_url = None
+
 
 class SASLMemcachedCache(MemcachedCache):
     def __init__(self, **kwargs):
-        import pylibmc
-
         servers = kwargs.pop('servers', ['127.0.0.1:11211'])
         default_timeout = kwargs.pop('default_timeout', 300)
         key_prefix = kwargs.pop('key_prefix', None)
@@ -71,8 +79,6 @@ def filesystem(config, *args, **kwargs):
 
 
 def redis(config, *args, **kwargs):
-    from redis import from_url
-
     kwargs.update(
         {
             'host': config.get('CACHE_REDIS_HOST', 'localhost'),
@@ -151,7 +157,7 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
         chunk : (Bool) if set to false, get a value set with
             set(..., chunk=False)
         """
-        if chunk:
+        if chunk and not key.endswith('_memver'):
             return self._get(key)
         else:
             return super(SpreadSASLMemcachedCache, self).get(key)
