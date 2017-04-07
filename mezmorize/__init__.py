@@ -18,7 +18,6 @@ import base64
 import functools
 import hashlib
 import inspect
-import logging
 import string
 import uuid
 import warnings
@@ -26,8 +25,6 @@ import random
 
 from importlib import import_module
 from ._compat import PY2
-
-logger = logging.getLogger(__name__)
 
 # Used to remove control characters and whitespace from cache keys.
 valid_chars = set(string.ascii_letters + string.digits + '_.')
@@ -71,12 +68,10 @@ def function_namespace(f, *args):
 
         name = klass.__name__ + '.' + f.__name__ if klass else f.__name__
 
-    ns = '.'.join((module, name))
-    ns = ns.translate(*null_control)
+    ns = '.'.join((module, name)).translate(*null_control)
 
     if instance_token:
-        ins = '.'.join((module, name, instance_token))
-        ins = ins.translate(*null_control)
+        ins = '.'.join((module, name, instance_token)).translate(*null_control)
     else:
         ins = None
 
@@ -359,7 +354,7 @@ class Cache(object):
             params ``make_name``, ``unless``
         """
 
-        def memoize(f):
+        def _memoize(f):
             @functools.wraps(f)
             def decorated(*args, **kwargs):
                 if callable(unless) and unless():  # bypass cache
@@ -370,10 +365,10 @@ class Cache(object):
 
                 if value is None:
                     value = f(*args, **kwargs)
-                    kwarg = {'timeout': decorated.cache_timeout}
+                    ckwargs = {'timeout': decorated.cache_timeout}
 
                     def set_cache(value, key):
-                        self.cache.set(key, value, **kwarg)
+                        self.cache.set(key, value, **ckwargs)
                         return value
 
                     try:
@@ -390,7 +385,7 @@ class Cache(object):
             decorated.delete_memoized = lambda: self.delete_memoized(f)
             return decorated
 
-        return memoize
+        return _memoize
 
     def delete_memoized(self, f, *args, **kwargs):
         """
