@@ -1,4 +1,13 @@
-from __future__ import with_statement
+# -*- coding: utf-8 -*-
+# vim: sw=4:ts=4:expandtab
+"""
+    tests.test_cache
+    ~~~~~~~~~~~~~~~~~~~
+
+    Provides unit tests.
+"""
+from __future__ import (
+    absolute_import, division, print_function, unicode_literals)
 
 import sys
 import os

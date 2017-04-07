@@ -1,3 +1,12 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# vim: sw=4:ts=4:expandtab
+"""
+    mezmorize.backends
+    ~~~~~~~~~~~~~~~~~~
+
+    Provides mezmorize storage mechanisms
+"""
 import pickle
 
 from itertools import chain
@@ -83,7 +92,7 @@ def redis(config, *args, **kwargs):
 class SpreadSASLMemcachedCache(SASLMemcachedCache):
     """
     Simple Subclass of SASLMemcached client that spread value across multiple
-    key is they are bigger than a given threshhold.
+    key is they are bigger than a given threshold.
 
     Spreading require using pickle to store the value, which can significantly
     impact the performances.

@@ -1,12 +1,11 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# vim: sw=4:ts=4:expandtab
 """
     mezmorize
-    ~~~~~~~~~~~~~~
+    ~~~~~~~~~
 
-    Adds cache support to your application.
-
-    :copyright: (c) 2010 by Thadeus Burgess.
-    :license: BSD, see LICENSE for more details
+    Adds function memoization support
 """
 
 from __future__ import absolute_import, division, print_function
@@ -84,7 +83,6 @@ class Cache(object):
     """
     This class is used to control the cache objects.
     """
-
     def __init__(self, **config):
         config.setdefault('CACHE_DEFAULT_TIMEOUT', 300)
         config.setdefault('CACHE_THRESHOLD', 500)
@@ -495,7 +493,7 @@ class Cache(object):
             the caching backend.
 
             It is recommended to use a very high timeout with memoize if using
-            this function, so that when the version has is swapped, the old
+            this function, so that when the version has been swapped, the old
             cached results would eventually be reclaimed by the caching
             backend.
         """

@@ -1,10 +1,8 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
-Mezmorize
------------
-
-Adds function memoization support
-
+    setup.py
+    ~~~~~~~~~
 """
 import sys
 import re
