@@ -29,7 +29,7 @@ except ImportError:
 
 class SASLMemcachedCache(MemcachedCache):
     def __init__(self, **kwargs):
-        servers = kwargs.pop('servers', ['127.0.0.1:11211'])
+        servers = kwargs.pop('servers', None) or ['127.0.0.1:11211']
         default_timeout = kwargs.pop('default_timeout', 300)
         key_prefix = kwargs.pop('key_prefix', None)
         BaseCache.__init__(self, default_timeout)
