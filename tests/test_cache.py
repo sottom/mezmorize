@@ -21,7 +21,7 @@ import nose.tools as nt
 from mezmorize import Cache, function_namespace
 from mezmorize.backends import (
     from_url, pylibmc, SimpleCache, FileSystemCache, RedisCache,
-    MemcachedCache, SASLMemcachedCache, SpreadSASLMemcachedCache)
+    MemcachedCache, SASLMemcachedCache, SpreadSASLMemcachedCache, TooBig)
 
 if sys.version_info < (2, 7):
     import unittest2 as unittest
@@ -414,6 +414,15 @@ if has_mc():
             nt.assert_equal(self.cache.config['CACHE_TYPE'], 'memcached')
             nt.assert_is_instance(self.cache.cache, MemcachedCache)
 
+        def test_mc_large_value(self):
+            cache = Cache(**self.config)
+
+            with nt.assert_raises(TooBig):
+                cache.set('big', range(1000000))
+
+            nt.assert_is_none(cache.get('big'))
+
+if has_mc():
     class SASLMemcachedCacheTestCase(CacheTestCase):
         def _get_config(self):
             return {
@@ -426,6 +435,15 @@ if has_mc():
             nt.assert_equal(self.cache.config['CACHE_TYPE'], 'saslmemcached')
             nt.assert_is_instance(self.cache.cache, SASLMemcachedCache)
 
+        def test_mc_large_value(self):
+            cache = Cache(**self.config)
+
+            with nt.assert_raises(TooBig):
+                cache.set('big', range(1000000))
+
+            nt.assert_is_none(cache.get('big'))
+
+if has_mc():
     class SpreadSASLMemcachedCacheTestCase(CacheTestCase):
         def _get_config(self):
             return {
@@ -436,6 +454,14 @@ if has_mc():
             CACHE_TYPE = self.cache.config['CACHE_TYPE']
             nt.assert_equal(CACHE_TYPE, 'spreadsaslmemcachedcache')
             nt.assert_is_instance(self.cache.cache, SpreadSASLMemcachedCache)
+
+        def test_mc_large_value(self):
+            cache = Cache(**self.config)
+            cache.set('big', range(1000000))
+            nt.assert_equal(len(cache.get('big')), 1000000)
+
+            cache.delete('big')
+            nt.assert_is_none(cache.get('big'))
 else:
     print('requires Memcache')
 
