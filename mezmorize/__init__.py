@@ -10,9 +10,6 @@
 
 from __future__ import absolute_import, division, print_function
 
-__version__ = '0.13'
-__versionfull__ = __version__
-
 import base64
 import functools
 import hashlib
@@ -24,6 +21,15 @@ import random
 
 from importlib import import_module
 from ._compat import PY2
+
+__version__ = '0.16.1'
+__title__ = 'mezmorize'
+__package_name__ = 'mezmorize'
+__author__ = 'Reuben Cummings'
+__description__ = 'Adds function memoization support'
+__email__ = 'reubano@gmail.com'
+__license__ = 'BSD'
+__copyright__ = 'Copyright 2015 Reuben Cummings'
 
 # Used to remove control characters and whitespace from cache keys.
 valid_chars = set(string.ascii_letters + string.digits + '_.')
