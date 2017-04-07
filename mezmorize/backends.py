@@ -14,8 +14,6 @@ from werkzeug.contrib.cache import (
     BaseCache, NullCache, SimpleCache, MemcachedCache, GAEMemcachedCache,
     FileSystemCache, RedisCache)
 
-from ._compat import range_type
-
 try:
     import pylibmc
 except ImportError:
@@ -139,7 +137,7 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
         serialized = pickle.dumps(value, 2)
         values = {}
         len_ser = len(serialized)
-        chunks = range_type(0, len_ser, self.chunksize)
+        chunks = range(0, len_ser, self.chunksize)
 
         if len(chunks) > self.maxchunk:
             raise ValueError(
@@ -163,10 +161,10 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
             return super(SpreadSASLMemcachedCache, self).get(key)
 
     def _genkeys(self, key):
-        return ['%s.%s' % (key, i) for i in range_type(self.maxchunk)]
+        return ['%s.%s' % (key, i) for i in range(self.maxchunk)]
 
     def _get(self, key):
-        to_get = ['%s.%s' % (key, i) for i in range_type(self.maxchunk)]
+        to_get = ['%s.%s' % (key, i) for i in range(self.maxchunk)]
         result = super(SpreadSASLMemcachedCache, self).get_many(*to_get)
         serialized = ''.join(v for v in result if v is not None)
 

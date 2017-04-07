@@ -14,13 +14,11 @@ import base64
 import functools
 import hashlib
 import inspect
-import string
 import uuid
 import warnings
 import random
 
 from importlib import import_module
-from ._compat import PY2
 
 __version__ = '0.16.1'
 __title__ = 'mezmorize'
@@ -32,13 +30,14 @@ __license__ = 'BSD'
 __copyright__ = 'Copyright 2015 Reuben Cummings'
 
 # Used to remove control characters and whitespace from cache keys.
-valid_chars = set(string.ascii_letters + string.digits + '_.')
-delchars = ''.join(c for c in map(chr, range(256)) if c not in valid_chars)
+is_invalid = lambda c: not (c in {'_', '.'} or c.isalnum())
+delchars = filter(is_invalid, map(chr, range(256)))
 
-if PY2:
-    null_control = (None, delchars)
-else:
-    null_control = (dict((k, None) for k in delchars),)
+try:
+    trans_tbl = ''.maketrans({k: None for k in delchars})
+    null_control = (trans_tbl,)
+except AttributeError:
+    null_control = (None, ''.join(delchars))
 
 
 def function_namespace(f, *args):
