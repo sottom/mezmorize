@@ -11,8 +11,8 @@ import pickle
 
 from itertools import chain
 from werkzeug.contrib.cache import (
-    BaseCache, NullCache, SimpleCache, MemcachedCache, GAEMemcachedCache,
-    FileSystemCache, RedisCache)
+    BaseCache, NullCache, SimpleCache, MemcachedCache, FileSystemCache,
+    RedisCache)
 
 try:
     import pylibmc
@@ -63,11 +63,6 @@ def saslmemcached(config, **kwargs):
             'key_prefix': config['CACHE_KEY_PREFIX']})
 
     return SASLMemcachedCache(**kwargs)
-
-
-def gaememcached(config, *args, **kwargs):
-    kwargs.update({'key_prefix': config['CACHE_KEY_PREFIX']})
-    return GAEMemcachedCache(*args, **kwargs)
 
 
 def filesystem(config, *args, **kwargs):
