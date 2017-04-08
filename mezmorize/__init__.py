@@ -20,7 +20,7 @@ import random
 
 from importlib import import_module
 
-__version__ = '0.16.1'
+__version__ = '0.17.0'
 __title__ = 'mezmorize'
 __package_name__ = 'mezmorize'
 __author__ = 'Reuben Cummings'
