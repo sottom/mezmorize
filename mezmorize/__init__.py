@@ -18,6 +18,7 @@ import uuid
 import warnings
 
 from importlib import import_module
+from . import backends
 
 __version__ = '0.18.0'
 __title__ = 'mezmorize'
@@ -112,8 +113,6 @@ class Cache(object):
         module_string = self.config['CACHE_TYPE']
 
         if '.' not in module_string:
-            from . import backends
-
             try:
                 cache_obj = getattr(backends, module_string)
             except AttributeError:
