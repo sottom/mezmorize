@@ -16,7 +16,6 @@ import hashlib
 import inspect
 import uuid
 import warnings
-import random
 
 from importlib import import_module
 
@@ -111,14 +110,15 @@ class Cache(object):
 
     def _set_cache(self):
         module_string = self.config['CACHE_TYPE']
+
         if '.' not in module_string:
             from . import backends
 
             try:
                 cache_obj = getattr(backends, module_string)
             except AttributeError:
-                raise ImportError(
-                    "%s is not a valid FlaskCache backend" % (module_string))
+                msg = '{} is not a valid FlaskCache backend'
+                raise ImportError(msg.format(module_string))
         else:
             cache_obj = import_module(module_string)
 
@@ -214,8 +214,8 @@ class Cache(object):
             dirty = True
 
         if dirty:
-            self.cache.set_many(
-                dict(zip(fetch_keys, version_data_list)), **kwargs)
+            zipped = zip(fetch_keys, version_data_list)
+            self.cache.set_many(dict(zipped), **kwargs)
 
         return fname, ''.join(version_data_list)
 
@@ -238,11 +238,7 @@ class Cache(object):
             else:
                 keyargs, keykwargs = args, kwargs
 
-            try:
-                updated = "{0}{1}{2}".format(altfname, keyargs, keykwargs)
-            except AttributeError:
-                updated = "%s%s%s" % (altfname, keyargs, keykwargs)
-
+            updated = '{0}{1}{2}'.format(altfname, keyargs, keykwargs)
             cache_key = hashlib.md5()
             cache_key.update(updated.encode('utf-8'))
             cache_key = base64.b64encode(cache_key.digest())[:16]
@@ -260,8 +256,9 @@ class Cache(object):
         new_args = []
         arg_num = 0
         argspec = inspect.getargspec(f)
-
         args_len = len(argspec.args)
+        defaults = argspec.defaults
+
         for i in range(args_len):
             if i == 0 and argspec.args[i] in ('self', 'cls'):
                 #: use the repr of the class instance
@@ -275,8 +272,8 @@ class Cache(object):
             elif arg_num < len(args):
                 arg = args[arg_num]
                 arg_num += 1
-            elif abs(i - args_len) <= len(argspec.defaults or []):
-                arg = argspec.defaults[i - args_len]
+            elif defaults and abs(i - args_len) <= len(defaults):
+                arg = defaults[i - args_len]
                 arg_num += 1
             else:
                 arg = None
@@ -314,7 +311,8 @@ class Cache(object):
         `Memoization <http://en.wikipedia.org/wiki/Memoization>`_.
 
         Example::
-
+            >>> import random
+            >>>
             >>> cache = Cache()
             >>> random.seed(10)
             >>>
@@ -406,6 +404,8 @@ class Cache(object):
         forgotten.
 
         Example::
+            >>> import random
+            >>>
             >>> cache = Cache()
             >>> random.seed(10)
             >>>
@@ -515,7 +515,7 @@ class Cache(object):
                 "Deleting messages by relative name is no longer"
                 " reliable, please switch to a function reference")
 
-        if not args and not kwargs:
+        if not (args or kwargs):
             self._memoize_version(f, reset=True)
         else:
             cache_key = f.make_cache_key(f.uncached, *args, **kwargs)
