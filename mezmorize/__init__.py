@@ -104,7 +104,7 @@ class Cache(object):
             warnings.warn(
                 "CACHE_TYPE is set to null, caching is effectively disabled.")
 
-        self.namespace = namespace
+        self.namespace = str(namespace)
         self.config = config
         self._set_cache()
 
