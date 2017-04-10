@@ -88,7 +88,7 @@ class Cache(object):
     """
     This class is used to control the cache objects.
     """
-    def __init__(self, **config):
+    def __init__(self, namespace='', **config):
         config.setdefault('CACHE_DEFAULT_TIMEOUT', 300)
         config.setdefault('CACHE_THRESHOLD', 500)
         config.setdefault('CACHE_KEY_PREFIX', 'mezmorize_')
@@ -105,6 +105,7 @@ class Cache(object):
             warnings.warn(
                 "CACHE_TYPE is set to null, caching is effectively disabled.")
 
+        self.namespace = namespace
         self.config = config
         self._set_cache()
 
@@ -165,7 +166,14 @@ class Cache(object):
         return funcname + '_memver'
 
     def _memoize_make_version_hash(self):
-        return base64.b64encode(uuid.uuid4().bytes)[:6].decode('utf-8')
+        if self.namespace.startswith('http'):
+            UUID = uuid.uuid3(uuid.NAMESPACE_URL, self.namespace)
+        if self.namespace:
+            UUID = uuid.uuid3(uuid.NAMESPACE_DNS, self.namespace)
+        else:
+            UUID = uuid.uuid4()
+
+        return base64.b64encode(UUID.bytes)[:6].decode('utf-8')
 
     def _memoize_version(self, f, *args, **kwargs):
         """
