@@ -248,7 +248,7 @@ class Cache(object):
         #: Inspect the arguments to the function
         #: This allows the memoization to be the same
         #: whether the function was called with
-        #: 1, b=2 is equivilant to a=1, b=2, etc.
+        #: 1, b=2 is equivalent to a=1, b=2, etc.
         new_args = []
         arg_num = 0
         argspec = inspect.getargspec(f)
@@ -267,7 +267,7 @@ class Cache(object):
             elif arg_num < len(args):
                 arg = args[arg_num]
                 arg_num += 1
-            elif abs(i - args_len) <= len(argspec.defaults):
+            elif abs(i - args_len) <= len(argspec.defaults or []):
                 arg = argspec.defaults[i - args_len]
                 arg_num += 1
             else:
