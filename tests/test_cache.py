@@ -395,6 +395,30 @@ class CacheTestCase(unittest.TestCase):
         nt.assert_equal(args, expected)
 
 
+class NSCacheTestCase(unittest.TestCase):
+    def _get_config(self):
+        return {'CACHE_TYPE': 'simple'}
+
+    def setUp(self):
+        self.config = self._get_config()
+        self.namespace = 'https://github.com/reubano/mezmorize'
+        self.cache = Cache(namespace=self.namespace, **self.config)
+
+    def tearDown(self):
+        self.cache = {}
+
+    def test_memoize(self):
+        def func(a, b):
+            return a + b + random.randrange(0, 100000)
+
+        cache_key1 = self.cache._memoize_make_cache_key()(func)
+        nt.assert_equal(cache_key1, 'VKQlyaJ2Pm8xCZ8bHmhhp1')
+
+        cache = Cache(namespace=self.namespace, **self.config)
+        cache_key2 = cache._memoize_make_cache_key()(func)
+        nt.assert_equal(cache_key2, 'VKQlyaJ2Pm8xCZ8bHmhhp1')
+
+
 class FileSystemCacheTestCase(CacheTestCase):
     def _get_config(self):
         return {'CACHE_TYPE': 'filesystem', 'CACHE_DIR': '/tmp'}

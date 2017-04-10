@@ -18,8 +18,9 @@ import uuid
 import warnings
 
 from importlib import import_module
+from . import backends
 
-__version__ = '0.18.0'
+__version__ = '0.18.1'
 __title__ = 'mezmorize'
 __package_name__ = 'mezmorize'
 __author__ = 'Reuben Cummings'
@@ -104,7 +105,7 @@ class Cache(object):
             warnings.warn(
                 "CACHE_TYPE is set to null, caching is effectively disabled.")
 
-        self.namespace = namespace
+        self.namespace = str(namespace)
         self.config = config
         self._set_cache()
 
@@ -112,8 +113,6 @@ class Cache(object):
         module_string = self.config['CACHE_TYPE']
 
         if '.' not in module_string:
-            from . import backends
-
             try:
                 cache_obj = getattr(backends, module_string)
             except AttributeError:
