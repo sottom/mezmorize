@@ -20,7 +20,7 @@ import warnings
 from importlib import import_module
 from . import backends
 
-__version__ = '0.18.1'
+__version__ = '0.18.2'
 __title__ = 'mezmorize'
 __package_name__ = 'mezmorize'
 __author__ = 'Reuben Cummings'
