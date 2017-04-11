@@ -19,7 +19,11 @@ try:
 except ImportError:
     TooBig = pylibmc = None
 else:
-    from pylibmc import TooBig
+    try:
+        from pylibmc import TooBig
+    except ImportError:
+        from pylibmc import Error, ServerError
+        TooBig = (Error, ServerError)
 
 try:
     from redis import from_url
@@ -103,13 +107,14 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
         Kwargs:
             chunksize (int): max length of a pickled object that can fit in
                 memcached (memcache has an upper limit of 1MB for values,
-                default: 1024000)
+                default: 1048448)
         """
-        self.CHUNKSIZE = kwargs.get('chunksize', 1024000)
+        self.CHUNKSIZE = kwargs.get('chunksize', 1048448)
         self.MARKER = 'SpreadSASLMemcachedCache.SpreadedValue'
         self.maxchunks = kwargs.get('maxchunks', 32)
         super(SpreadSASLMemcachedCache, self).__init__(*args, **kwargs)
         self.super = super(SpreadSASLMemcachedCache, self)
+        self.is_bytes = type(b'') != str
 
     def _genkeys(self, key):
         return ('{}.{}'.format(key, i) for i in range(self.maxchunks))
@@ -155,7 +160,12 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
         if value == self.MARKER:
             keys = self._genkeys(key)
             result = self.super.get_many(*keys)
-            serialized = ''.join(v for v in result if v is not None)
+
+            if self.is_bytes:
+                serialized = b''.join(v for v in result if v is not None)
+            else:
+                serialized = ''.join(v for v in result if v is not None)
+
             value = pickle.loads(serialized) if serialized else None
 
         return value

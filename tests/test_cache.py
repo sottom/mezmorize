@@ -28,6 +28,7 @@ if sys.version_info < (2, 7):
 else:
     import unittest
 
+BIGINT = 2 ** 21
 pgrep = lambda process: call(['pgrep', process]) == 0
 has_redis = lambda: from_url and pgrep('redis')
 has_mc = lambda: pylibmc and pgrep('memcache')
@@ -411,12 +412,10 @@ class NSCacheTestCase(unittest.TestCase):
         def func(a, b):
             return a + b + random.randrange(0, 100000)
 
-        cache_key1 = self.cache._memoize_make_cache_key()(func)
-        nt.assert_equal(cache_key1, 'VKQlyaJ2Pm8xCZ8bHmhhp1')
-
         cache = Cache(namespace=self.namespace, **self.config)
+        cache_key1 = self.cache._memoize_make_cache_key()(func)
         cache_key2 = cache._memoize_make_cache_key()(func)
-        nt.assert_equal(cache_key2, 'VKQlyaJ2Pm8xCZ8bHmhhp1')
+        nt.assert_equal(cache_key1, cache_key2)
 
 
 class FileSystemCacheTestCase(CacheTestCase):
@@ -442,7 +441,7 @@ if has_mc():
             cache = Cache(**self.config)
 
             with nt.assert_raises(TooBig):
-                cache.set('big', range(1000000))
+                cache.set('big', 'a' * BIGINT)
 
             nt.assert_is_none(cache.get('big'))
 
@@ -463,7 +462,7 @@ if has_mc():
             cache = Cache(**self.config)
 
             with nt.assert_raises(TooBig):
-                cache.set('big', range(1000000))
+                cache.set('big', 'a' * BIGINT)
 
             nt.assert_is_none(cache.get('big'))
 
@@ -481,8 +480,8 @@ if has_mc():
 
         def test_mc_large_value(self):
             cache = Cache(**self.config)
-            cache.set('big', range(1000000))
-            nt.assert_equal(len(cache.get('big')), 1000000)
+            cache.set('big', 'a' * BIGINT)
+            nt.assert_equal(cache.get('big'), 'a' * BIGINT)
 
             cache.delete('big')
             nt.assert_is_none(cache.get('big'))

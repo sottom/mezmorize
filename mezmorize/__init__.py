@@ -313,20 +313,20 @@ class Cache(object):
             >>> import random
             >>>
             >>> cache = Cache()
-            >>> random.seed(10)
+            >>> random.seed(94967295)
             >>>
             >>> @cache.memoize(timeout=50)
             ... def big_foo(a, b):
-            ...     return a + b + random.randrange(0, 1000)
+            ...     return a + b + random.random()
 
         .. code-block:: pycon
 
             >>> big_foo(5, 2)
-            578
+            7.958704852413581
             >>> big_foo(5, 3)
-            436
+            8.549092433826667
             >>> big_foo(5, 2)
-            578
+            7.958704852413581
 
         .. versionadded:: 0.4
             The returned decorated function now has three function attributes
@@ -406,36 +406,36 @@ class Cache(object):
             >>> import random
             >>>
             >>> cache = Cache()
-            >>> random.seed(10)
+            >>> random.seed(94967295)
             >>>
             >>> @cache.memoize(50)
             ... def random_func():
-            ...    return random.randrange(1, 50)
+            ...    return random.random()
 
             >>> @cache.memoize()
             ... def param_func(a, b):
-            ...    return a + b + random.randrange(1, 50)
+            ...    return a + b + random.random()
 
         .. code-block:: pycon
 
             >>> random_func()
-            28
+            0.9587048524135806
             >>> random_func()
-            28
+            0.9587048524135806
             >>> cache.delete_memoized(random_func)
             >>> random_func()
-            22
+            0.5490924338266671
             >>> param_func(1, 2)
-            32
+            3.9842867703092044
             >>> param_func(1, 2)
-            32
+            3.9842867703092044
             >>> param_func(2, 2)
-            15
+            4.206564934699584
             >>> cache.delete_memoized(param_func, 1, 2)
             >>> param_func(1, 2)
-            43
+            3.254770292165599
             >>> param_func(2, 2)
-            15
+            4.206564934699584
 
         Delete memoized is also smart about instance methods vs class methods.
 
@@ -448,7 +448,7 @@ class Cache(object):
 
         Example::
 
-            >>> random.seed(10)
+            >>> random.seed(94967295)
             >>>
             >>> class Adder(object):
             ...    @cache.memoize()
@@ -460,19 +460,19 @@ class Cache(object):
             >>> adder1 = Adder()
             >>> adder2 = Adder()
             >>> adder1.add(3)
-            3.5714025946899133
+            3.9587048524135806
             >>> adder2.add(3)
-            3.4288890546751145
+            3.549092433826667
             >>> cache.delete_memoized(adder1.add)
             >>> adder1.add(3)
-            3.5780913011344704
+            3.9842867703092044
             >>> adder2.add(3)
-            3.4288890546751145
+            3.549092433826667
             >>> cache.delete_memoized(Adder.add)
             >>> adder1.add(3)
-            3.2060982321395017
+            3.2065649346995837
             >>> adder2.add(3)
-            3.81332125135732
+            3.254770292165599
 
         :param fname: Name of the memoized function, or a reference to
             the function.
