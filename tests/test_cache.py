@@ -29,6 +29,7 @@ else:
     import unittest
 
 BIGINT = 2 ** 21
+BIGGERINT = 2 ** 28
 pgrep = lambda process: call(['pgrep', process]) == 0
 has_redis = lambda: from_url and pgrep('redis')
 has_mc = lambda: pylibmc and pgrep('memcache')
@@ -485,6 +486,9 @@ if has_mc():
 
             cache.delete('big')
             nt.assert_is_none(cache.get('big'))
+
+            with nt.assert_raises(ValueError):
+                cache.set('big', 'a' * BIGGERINT)
 else:
     print('requires Memcache')
 
