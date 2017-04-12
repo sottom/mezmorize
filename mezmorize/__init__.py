@@ -11,13 +11,13 @@
 from __future__ import absolute_import, division, print_function
 
 import base64
-import functools
 import hashlib
 import inspect
 import uuid
 import warnings
 
 from importlib import import_module
+from functools import partial, wraps
 from . import backends
 
 __version__ = '0.18.2'
@@ -363,7 +363,7 @@ class Cache(object):
         """
 
         def _memoize(f):
-            @functools.wraps(f)
+            @wraps(f)
             def decorated(*args, **kwargs):
                 if callable(unless) and unless():  # bypass cache
                     return f(*args, **kwargs)
@@ -390,7 +390,7 @@ class Cache(object):
             decorated.cache_timeout = timeout
             m_make_cache_key = self._memoize_make_cache_key
             decorated.make_cache_key = m_make_cache_key(make_name, decorated)
-            decorated.delete_memoized = lambda: self.delete_memoized(f)
+            decorated.delete_memoized = partial(self.delete_memoized, f)
             return decorated
 
         return _memoize
