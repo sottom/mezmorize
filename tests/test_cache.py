@@ -20,7 +20,7 @@ from mezmorize.utils import (
 
 from mezmorize.backends import (
     SimpleCache, FileSystemCache, RedisCache, MemcachedCache,
-    SASLMemcachedCache, SpreadSASLMemcachedCache, TooBig)
+    SASLMemcachedCache, SpreadSASLMemcachedCache)
 
 import unittest
 
@@ -432,7 +432,7 @@ if HAS_MEMCACHE:
         def test_mc_large_value(self):
             cache = Cache(**self.config)
 
-            with nt.assert_raises(TooBig):
+            with nt.assert_raises(cache.cache.TooBig):
                 cache.set('big', 'a' * BIGINT)
 
             nt.assert_is_none(cache.get('big'))
@@ -451,7 +451,7 @@ if HAS_MEMCACHE:
         def test_mc_large_value(self):
             cache = Cache(**self.config)
 
-            with nt.assert_raises(TooBig):
+            with nt.assert_raises(cache.cache.TooBig):
                 cache.set('big', 'a' * BIGINT)
 
             nt.assert_is_none(cache.get('big'))

@@ -11,21 +11,10 @@ import pickle
 
 from itertools import chain
 from werkzeug.contrib.cache import (
-    BaseCache, NullCache, SimpleCache, MemcachedCache, FileSystemCache,
+    NullCache, SimpleCache, MemcachedCache as _MemcachedCache, FileSystemCache,
     RedisCache)
 
-from .utils import DEF_SERVERS, IS_PY3
-
-try:
-    import pylibmc
-except ImportError:
-    TooBig = pylibmc = None
-else:
-    try:
-        from pylibmc import TooBig
-    except ImportError:
-        from pylibmc import Error, ServerError
-        TooBig = (Error, ServerError)
+from .utils import DEF_SERVERS, IS_PY3, HAS_MEMCACHE
 
 try:
     from redis import from_url
@@ -44,14 +33,40 @@ def gen_config_items(*keys, **config):
         yield (key, config[CONFIG_LOOKUP[key]])
 
 
-class SASLMemcachedCache(MemcachedCache):
-    def __init__(self, servers=(DEF_SERVERS,), **kwargs):
-        default_timeout = kwargs.pop('default_timeout', 300)
-        key_prefix = kwargs.pop('key_prefix', None)
-        BaseCache.__init__(self, default_timeout)
+def get_mc_client(servers=(DEF_SERVERS,), **kwargs):
+    from pylibmc import Client
+    timeout = kwargs.pop('timeout', None)
 
-        self._client = pylibmc.Client(servers, binary=True, **kwargs)
-        self.key_prefix = key_prefix
+    try:
+        from pylibmc import TooBig
+    except ImportError:
+        from pylibmc import Error, ServerError
+        TooBig = (Error, ServerError)
+
+    binary = kwargs.pop('binary', True)
+
+    if timeout:
+        kwargs['behaviors'] = {'connect_timeout': timeout}
+
+    client = Client(servers, binary=binary, **kwargs)
+    client.TooBig = TooBig
+    return client
+
+
+class MemcachedCache(_MemcachedCache):
+    def __init__(self, *args, default_timeout=300, key_prefix=None, **kwargs):
+        if not HAS_MEMCACHE:
+            raise RuntimeError('No memcache module found.')
+
+        client = get_mc_client(**kwargs)
+        skwargs = {'default_timeout': default_timeout, 'key_prefix': key_prefix}
+        super(MemcachedCache, self).__init__(servers=client, **skwargs)
+        self.TooBig = client.TooBig
+
+
+class SASLMemcachedCache(MemcachedCache):
+    def __init__(self, *args, **kwargs):
+        super(SASLMemcachedCache, self).__init__(*args, **kwargs)
 
 
 def null(config, *args, **kwargs):
@@ -145,7 +160,7 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
         """
         try:
             value = self.super.set(key, value, timeout=timeout)
-        except TooBig:
+        except self.TooBig:
             self.super.set(key, self.MARKER, timeout=timeout)
             pickled = pickle.dumps(value, 2)
             values = dict(self._gen_kv(key, pickled))
