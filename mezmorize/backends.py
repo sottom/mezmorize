@@ -32,6 +32,17 @@ try:
 except ImportError:
     from_url = None
 
+CONFIG_LOOKUP = {
+    'servers': 'CACHE_MEMCACHED_SERVERS',
+    'username': 'CACHE_MEMCACHED_USERNAME',
+    'password': 'CACHE_MEMCACHED_PASSWORD',
+    'key_prefix': 'CACHE_KEY_PREFIX'}
+
+
+def gen_config_items(*keys, **config):
+    for key in keys:
+        yield (key, config[CONFIG_LOOKUP[key]])
+
 
 class SASLMemcachedCache(MemcachedCache):
     def __init__(self, servers=(DEF_SERVERS,), **kwargs):
@@ -53,22 +64,15 @@ def simple(config, *args, **kwargs):
 
 
 def memcached(config, *args, **kwargs):
-    kwargs.update(
-        {
-            'servers': config['CACHE_MEMCACHED_SERVERS'],
-            'key_prefix': config['CACHE_KEY_PREFIX']})
-
+    config_items = gen_config_items('servers', 'key_prefix', **config)
+    kwargs.update(dict(config_items))
     return MemcachedCache(*args, **kwargs)
 
 
 def saslmemcached(config, **kwargs):
-    kwargs.update(
-        {
-            'servers': config['CACHE_MEMCACHED_SERVERS'],
-            'username': config['CACHE_MEMCACHED_USERNAME'],
-            'password': config['CACHE_MEMCACHED_PASSWORD'],
-            'key_prefix': config['CACHE_KEY_PREFIX']})
-
+    keys = ('servers', 'username', 'password', 'key_prefix')
+    config_items = gen_config_items(*keys, **config)
+    kwargs.update(dict(config_items))
     return SASLMemcachedCache(**kwargs)
 
 
@@ -79,14 +83,11 @@ def filesystem(config, *args, **kwargs):
 
 
 def redis(config, *args, **kwargs):
-    kwargs.update(
-        {
-            'host': config.get('CACHE_REDIS_HOST', 'localhost'),
-            'port': config.get('CACHE_REDIS_PORT', 6379),
-            'password': config.get('CACHE_REDIS_PASSWORD'),
-            'key_prefix': config.get('CACHE_KEY_PREFIX'),
-            'db': config.get('CACHE_REDIS_DB')})
-
+    kwargs.setdefault('host', config.get('CACHE_REDIS_HOST', 'localhost'))
+    kwargs.setdefault('port', config.get('CACHE_REDIS_PORT', 6379))
+    kwargs.setdefault('password', config.get('CACHE_REDIS_PASSWORD'))
+    kwargs.setdefault('key_prefix', config.get('CACHE_KEY_PREFIX'))
+    kwargs.setdefault('db', config.get('CACHE_REDIS_DB'))
     redis_url = config.get('CACHE_REDIS_URL')
 
     if redis_url:
@@ -173,11 +174,7 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
 
 
 def spreadsaslmemcached(config, *args, **kwargs):
-    kwargs.update(
-        {
-            'servers': config['CACHE_MEMCACHED_SERVERS'],
-            'username': config.get('CACHE_MEMCACHED_USERNAME'),
-            'password': config.get('CACHE_MEMCACHED_PASSWORD'),
-            'key_prefix': config.get('CACHE_KEY_PREFIX')})
-
+    keys = ('servers', 'username', 'password', 'key_prefix')
+    config_items = gen_config_items(*keys, **config)
+    kwargs.update(dict(config_items))
     return SpreadSASLMemcachedCache(*args, **kwargs)
