@@ -18,6 +18,7 @@ import warnings
 
 from importlib import import_module
 from functools import partial, wraps
+
 from . import backends
 
 __version__ = '0.18.2'
@@ -32,6 +33,8 @@ __copyright__ = 'Copyright 2015 Reuben Cummings'
 # Used to remove control characters and whitespace from cache keys.
 is_invalid = lambda c: not (c in {'_', '.'} or c.isalnum())
 delchars = filter(is_invalid, map(chr, range(256)))
+
+ENCODING = 'utf-8'
 
 try:
     trans_tbl = ''.maketrans({k: None for k in delchars})
@@ -170,7 +173,7 @@ class Cache(object):
         else:
             UUID = uuid.uuid4()
 
-        return base64.b64encode(UUID.bytes)[:6].decode('utf-8')
+        return base64.b64encode(UUID.bytes)[:6].decode(ENCODING)
 
     def _memoize_version(self, f, *args, **kwargs):
         """
@@ -237,9 +240,9 @@ class Cache(object):
 
             updated = '{0}{1}{2}'.format(altfname, keyargs, keykwargs)
             cache_key = hashlib.md5()
-            cache_key.update(updated.encode('utf-8'))
+            cache_key.update(updated.encode(ENCODING))
             cache_key = base64.b64encode(cache_key.digest())[:16]
-            cache_key = cache_key.decode('utf-8')
+            cache_key = cache_key.decode(ENCODING)
             cache_key += version_data
 
             return cache_key
