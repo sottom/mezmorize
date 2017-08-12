@@ -82,8 +82,6 @@ def function_namespace(f, *args):
     return ns, ins
 
 
-#: Cache Object
-################
 class Cache(object):
     """
     This class is used to control the cache objects.
@@ -103,7 +101,7 @@ class Cache(object):
 
         if config['CACHE_TYPE'] == 'null' and warning:
             warnings.warn(
-                "CACHE_TYPE is set to null, caching is effectively disabled.")
+                'CACHE_TYPE is set to null, caching is effectively disabled.')
 
         self.namespace = str(namespace)
         self.config = config
@@ -116,7 +114,7 @@ class Cache(object):
             try:
                 cache_obj = getattr(backends, module_string)
             except AttributeError:
-                msg = '{} is not a valid FlaskCache backend'
+                msg = '{} is not a valid Mezmorize backend'
                 raise ImportError(msg.format(module_string))
         else:
             cache_obj = import_module(module_string)

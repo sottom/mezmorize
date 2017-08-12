@@ -2,7 +2,7 @@
 # vim: sw=4:ts=4:expandtab
 """
     tests.test_cache
-    ~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~
 
     Provides unit tests.
 """
