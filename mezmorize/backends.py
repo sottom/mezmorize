@@ -14,6 +14,8 @@ from werkzeug.contrib.cache import (
     BaseCache, NullCache, SimpleCache, MemcachedCache, FileSystemCache,
     RedisCache)
 
+from .utils import DEF_SERVERS, IS_PY3
+
 try:
     import pylibmc
 except ImportError:
@@ -32,8 +34,7 @@ except ImportError:
 
 
 class SASLMemcachedCache(MemcachedCache):
-    def __init__(self, **kwargs):
-        servers = kwargs.pop('servers', None) or ['127.0.0.1:11211']
+    def __init__(self, servers=(DEF_SERVERS,), **kwargs):
         default_timeout = kwargs.pop('default_timeout', 300)
         key_prefix = kwargs.pop('key_prefix', None)
         BaseCache.__init__(self, default_timeout)
@@ -114,7 +115,6 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
         self.maxchunks = kwargs.get('maxchunks', 32)
         super(SpreadSASLMemcachedCache, self).__init__(*args, **kwargs)
         self.super = super(SpreadSASLMemcachedCache, self)
-        self.is_bytes = type(b'') != str
 
     def _genkeys(self, key):
         return ('{}.{}'.format(key, i) for i in range(self.maxchunks))
@@ -160,18 +160,19 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
         if value == self.MARKER:
             keys = self._genkeys(key)
             result = self.super.get_many(*keys)
+            filtered = (v for v in result if v is not None)
 
-            if self.is_bytes:
-                serialized = b''.join(v for v in result if v is not None)
+            if IS_PY3:
+                serialized = b''.join(filtered)
             else:
-                serialized = ''.join(v for v in result if v is not None)
+                serialized = ''.join(filtered)
 
             value = pickle.loads(serialized) if serialized else None
 
         return value
 
 
-def spreadsaslmemcachedcache(config, *args, **kwargs):
+def spreadsaslmemcached(config, *args, **kwargs):
     kwargs.update(
         {
             'servers': config['CACHE_MEMCACHED_SERVERS'],
