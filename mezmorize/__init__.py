@@ -42,12 +42,17 @@ try:
 except AttributeError:
     null_control = (None, ''.join(delchars))
 
+try:
+    from inspect import getfullargspec
+except ImportError:
+    from inspect import getargspec as getfullargspec
+
 
 def function_namespace(f, *args):
     """
     Attempts to returns unique namespace for function
     """
-    m_args = inspect.getargspec(f)[0] or []
+    m_args = getfullargspec(f).args
     instance_token = None
     instance_self = getattr(f, '__self__', None)
 
@@ -254,7 +259,7 @@ class Cache(object):
         # whether the function was called with
         # 1, b=2 is equivalent to a=1, b=2, etc.
         num_args = len(args)
-        argspec = inspect.getargspec(f)
+        argspec = getfullargspec(f)
         _defaults = argspec.defaults or []
         m_args = argspec.args
         defaults = dict(zip(reversed(m_args), reversed(_defaults)))
