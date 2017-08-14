@@ -183,11 +183,11 @@ class Cache(object):
         delete = kwargs.pop('delete', None)
         fname, instance_fname = function_namespace(f, *args)
         version_key = self._memvname(fname)
-        fetch_keys = [version_key]
 
         if instance_fname:
-            instance_version_key = self._memvname(instance_fname)
-            fetch_keys.append(instance_version_key)
+            fetch_keys = [version_key, self._memvname(instance_fname)]
+        else:
+            fetch_keys = [version_key]
 
         # Only delete the per-instance version key or per-function version
         # key but not both.
