@@ -131,7 +131,7 @@ class Cache(object):
         else:
             cache_obj = import_module(module_string)
 
-        args = self.config['CACHE_ARGS'][:]
+        args = self.config['CACHE_ARGS']
         kwargs = self.config['CACHE_OPTIONS']
         kwargs.setdefault('default_timeout', default_timeout)
         self.cache = cache_obj(self.config, *args, **kwargs)
