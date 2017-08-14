@@ -35,6 +35,10 @@ except ImportError:
 
 IS_PY3 = sys.version_info.major == 3
 
+ALL_MEMCACHES = (
+    ('pylibmc', pylibmc), ('pymemcache', pymemcache),
+    ('bmemcached', bmemcached))
+
 DEF_SERVERS = '127.0.0.1:11211'
 MEMOIZE_DEFAULTS = {'CACHE_THRESHOLD': 2048, 'CACHE_DEFAULT_TIMEOUT': 3600}
 MC_SERVERS = getenv('MEMCACHIER_SERVERS') or getenv('MEMCACHEDCLOUD_SERVERS')
@@ -86,6 +90,7 @@ def pgrep(process):
 
 
 HAS_MEMCACHE = (pylibmc or pymemcache or bmemcached) and pgrep('memcache')
+AVAIL_MEMCACHES = {k for k, v in ALL_MEMCACHES if HAS_MEMCACHE and v}
 HAS_REDIS = redis and pgrep('redis')
 
 

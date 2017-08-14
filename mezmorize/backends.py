@@ -14,7 +14,7 @@ from werkzeug.contrib.cache import (
     NullCache, SimpleCache, MemcachedCache as _MemcachedCache, FileSystemCache,
     RedisCache)
 
-from .utils import DEF_SERVERS, IS_PY3, HAS_MEMCACHE
+from .utils import DEF_SERVERS, IS_PY3, HAS_MEMCACHE, AVAIL_MEMCACHES
 
 try:
     from redis import from_url
@@ -33,23 +33,48 @@ def gen_config_items(*keys, **config):
         yield (key, config[CONFIG_LOOKUP[key]])
 
 
-def get_mc_client(servers=(DEF_SERVERS,), **kwargs):
-    from pylibmc import Client
+def get_mc_client(module_name, servers=(DEF_SERVERS,), binary=True, **kwargs):
     timeout = kwargs.pop('timeout', None)
 
-    try:
-        from pylibmc import TooBig
-    except ImportError:
-        from pylibmc import Error, ServerError
-        TooBig = (Error, ServerError)
+    if module_name == 'pylibmc':
+        from pylibmc import Client
 
-    binary = kwargs.pop('binary', True)
+        try:
+            from pylibmc import TooBig
+        except ImportError:
+            from pylibmc import Error, ServerError
+            TooBig = (Error, ServerError)
 
-    if timeout:
-        kwargs['behaviors'] = {'connect_timeout': timeout}
+        if timeout:
+            kwargs['behaviors'] = {'connect_timeout': timeout}
 
-    client = Client(servers, binary=binary, **kwargs)
-    client.TooBig = TooBig
+        client = Client(servers, binary=binary, **kwargs)
+        client.TooBig = TooBig
+    elif module_name == 'pymemcache':
+        from pymemcache.client.hash import HashClient
+
+        from pymemcache.serde import (
+            python_memcache_serializer, python_memcache_deserializer)
+
+        kwargs.setdefault('serializer', python_memcache_serializer)
+        kwargs.setdefault('deserializer', python_memcache_deserializer)
+
+        if timeout:
+            kwargs['timeout'] = timeout
+
+        split = [s.split(':') for s in servers]
+        _servers = [(host, int(port)) for host, port in split]
+        client = HashClient(_servers, **kwargs)
+        client.TooBig = ConnectionResetError
+    elif module_name == 'bmemcached':
+        from bmemcached import Client
+
+        if timeout:
+            kwargs['socket_timeout'] = timeout
+
+        client = Client(servers, **kwargs)
+        client.TooBig = None
+
     return client
 
 
@@ -61,14 +86,27 @@ class MemcachedCache(_MemcachedCache):
         if not HAS_MEMCACHE:
             raise RuntimeError('No memcache module found.')
 
-        client = get_mc_client(**kwargs)
+        compat_memcaches = kwargs.pop('compat_memcaches', AVAIL_MEMCACHES)
+        avail_memcaches = AVAIL_MEMCACHES.intersection(compat_memcaches)
+
+        if not avail_memcaches:
+            raise RuntimeError('No compatible memcache module found.')
+
+        preferred_mc = kwargs.pop('preferred_memcache', 'pylibmc')
+
+        if len(avail_memcaches) == 1 or preferred_mc not in avail_memcaches:
+            preferred_mc = avail_memcaches.pop()
+
+        client = get_mc_client(preferred_mc, **kwargs)
         skwargs = {'default_timeout': default_timeout, 'key_prefix': key_prefix}
         super(MemcachedCache, self).__init__(servers=client, **skwargs)
         self.TooBig = client.TooBig
+        self.client_name = preferred_mc
 
 
 class SASLMemcachedCache(MemcachedCache):
     def __init__(self, *args, **kwargs):
+        kwargs['compat_memcaches'] = ('pylibmc', 'bmemcached')
         super(SASLMemcachedCache, self).__init__(*args, **kwargs)
 
 
