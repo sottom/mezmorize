@@ -14,7 +14,9 @@ from werkzeug.contrib.cache import (
     NullCache, SimpleCache, MemcachedCache as _MemcachedCache, FileSystemCache,
     RedisCache)
 
-from .utils import DEF_SERVERS, IS_PY3, HAS_MEMCACHE, AVAIL_MEMCACHES
+from .utils import (
+    DEF_SERVERS, IS_PY3, HAS_MEMCACHE, AVAIL_MEMCACHES, get_pylibmc_client,
+    get_pymemcache_client, get_bmemcached_client)
 
 try:
     from redis import from_url
@@ -37,43 +39,12 @@ def get_mc_client(module_name, servers=(DEF_SERVERS,), binary=True, **kwargs):
     timeout = kwargs.pop('timeout', None)
 
     if module_name == 'pylibmc':
-        from pylibmc import Client
-
-        try:
-            from pylibmc import TooBig
-        except ImportError:
-            from pylibmc import Error, ServerError
-            TooBig = (Error, ServerError)
-
-        if timeout:
-            kwargs['behaviors'] = {'connect_timeout': timeout}
-
-        client = Client(servers, binary=binary, **kwargs)
-        client.TooBig = TooBig
+        client = get_pylibmc_client(
+            servers, timeout=timeout, binary=binary, **kwargs)
     elif module_name == 'pymemcache':
-        from pymemcache.client.hash import HashClient
-
-        from pymemcache.serde import (
-            python_memcache_serializer, python_memcache_deserializer)
-
-        kwargs.setdefault('serializer', python_memcache_serializer)
-        kwargs.setdefault('deserializer', python_memcache_deserializer)
-
-        if timeout:
-            kwargs['timeout'] = timeout
-
-        split = [s.split(':') for s in servers]
-        _servers = [(host, int(port)) for host, port in split]
-        client = HashClient(_servers, **kwargs)
-        client.TooBig = ConnectionResetError
+        client = get_pymemcache_client(servers, timeout=timeout, **kwargs)
     elif module_name == 'bmemcached':
-        from bmemcached import Client
-
-        if timeout:
-            kwargs['socket_timeout'] = timeout
-
-        client = Client(servers, **kwargs)
-        client.TooBig = None
+        client = get_bmemcached_client(servers, timeout=timeout, **kwargs)
 
     return client
 

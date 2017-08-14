@@ -19,32 +19,70 @@ from mezmorize.utils import HAS_MEMCACHE, HAS_REDIS, get_cache_config
 
 from mezmorize.backends import (
     SimpleCache, FileSystemCache, RedisCache, MemcachedCache,
-    SASLMemcachedCache, SpreadSASLMemcachedCache)
-
-import unittest
+    SASLMemcachedCache, SpreadSASLMemcachedCache, AVAIL_MEMCACHES)
 
 BIGINT = 2 ** 21
 BIGGERINT = 2 ** 28
 
 
-class CacheTestCase(unittest.TestCase):
-    def _get_config(self):
-        return get_cache_config('simple')
+def setup_func(*args, **kwargs):
+    namespace = kwargs.pop('namespace', None)
+    client_name = kwargs.pop('client_name', None)
+
+    if client_name:
+        CACHE_OPTIONS = kwargs.get('CACHE_OPTIONS', {})
+        CACHE_OPTIONS['preferred_memcache'] = client_name
+        kwargs['CACHE_OPTIONS'] = CACHE_OPTIONS
+
+    config = get_cache_config(*args, **kwargs)
+    cache = Cache(namespace=namespace, **config)
+    return cache
+
+
+def check_cache_type(cache, cache_type):
+    nt.assert_equal(cache.config['CACHE_TYPE'], cache_type)
+
+
+def check_cache_instance(cache, cache_instance):
+    nt.assert_is_instance(cache.cache, cache_instance)
+
+
+def check_client_name(cache, expected):
+    nt.assert_equal(cache.cache.client_name, expected)
+
+
+def check_too_big(cache, times, error=None):
+    if cache.cache.TooBig:
+        with nt.assert_raises(error or cache.cache.TooBig):
+            cache.set('big', 'a' * times)
+
+        nt.assert_is_none(cache.get('big'))
+    else:
+        cache.set('big', 'a' * times)
+        nt.assert_equal(cache.get('big'), 'a' * times)
+
+
+def check_set_delete(cache, key, value, multiplier=None):
+    if multiplier:
+        value *= multiplier
+
+    cache.set(key, value)
+    nt.assert_equal(cache.get(key), value)
+
+    cache.delete(key)
+    nt.assert_is_none(cache.get(key))
+
+
+class TestCache(object):
+    def setup(self):
+        self.cache = setup_func('simple')
+
+    def teardown(self):
+        self.cache.clear()
 
     def test_dict_config(self):
-        nt.assert_equal(self.cache.config['CACHE_TYPE'], 'simple')
-        nt.assert_is_instance(self.cache.cache, SimpleCache)
-
-    def setUp(self):
-        self.config = self._get_config()
-        self.cache = Cache(**self.config)
-        self.func = None
-
-    def tearDown(self):
-        if self.func:
-            self.cache.delete_memoized(self.func)
-
-        self.cache = {}
+        check_cache_type(self.cache, 'simple')
+        check_cache_instance(self.cache, SimpleCache)
 
     def test_000_set(self):
         self.cache.set('hi', 'hello')
@@ -58,16 +96,13 @@ class CacheTestCase(unittest.TestCase):
         nt.assert_equal(self.cache.get('hi'), 'hello')
 
     def test_delete(self):
-        self.cache.set('hi', 'hello')
-        self.cache.delete('hi')
-        nt.assert_is_none(self.cache.get('hi'))
+        check_set_delete(self.cache, 'hi', 'hello')
 
     def test_memoize(self):
         @self.cache.memoize(5)
         def func(a, b):
             return a + b + random.randrange(0, 100000)
 
-        self.func = func
         result = func(5, 2)
         time.sleep(1)
         nt.assert_equal(func(5, 2), result)
@@ -82,14 +117,13 @@ class CacheTestCase(unittest.TestCase):
         nt.assert_not_equal(func(5, 3), result2)
 
     def test_timeout(self):
-        self.config['CACHE_DEFAULT_TIMEOUT'] = 1
-        self.cache = Cache(**self.config)
+        config = get_cache_config('simple', CACHE_DEFAULT_TIMEOUT=1)
+        self.cache = Cache(**config)
 
         @self.cache.memoize(50)
         def func(a, b):
             return a + b + random.randrange(0, 100000)
 
-        self.func = func
         result = func(5, 2)
         time.sleep(2)
         nt.assert_equal(func(5, 2), result)
@@ -99,7 +133,6 @@ class CacheTestCase(unittest.TestCase):
         def func(a, b):
             return a + b + random.randrange(0, 100000)
 
-        self.func = func
         result = func(5, 2)
         result2 = func(5, 3)
         time.sleep(1)
@@ -118,7 +151,6 @@ class CacheTestCase(unittest.TestCase):
         def func(a, b):
             return a + b + random.randrange(0, 100000)
 
-        self.func = func
         result = func(5, 2)
         result2 = func(5, 3)
         time.sleep(1)
@@ -143,7 +175,6 @@ class CacheTestCase(unittest.TestCase):
         def func(a, b):
             return a + b + random.randrange(0, 100000)
 
-        self.func = func
         result_a = func(5, 1)
         result_b = func(5, 2)
         nt.assert_equal(func(5, 1), result_a)
@@ -158,7 +189,6 @@ class CacheTestCase(unittest.TestCase):
         def func(a, b):
             return sum(a) + sum(b) + random.randrange(0, 100000)
 
-        self.func = func
         result_a = func([5, 3, 2], [1])
         result_b = func([3, 3], [3, 1])
         nt.assert_equal(func([5, 3, 2], [1]), result_a)
@@ -173,7 +203,6 @@ class CacheTestCase(unittest.TestCase):
         def func(a, b=None):
             return a + sum(b.values()) + random.randrange(0, 100000)
 
-        self.func = func
         result_a = func(1, {'one': 1, 'two': 2})
         result_b = func(5, {'three': 3, 'four': 4})
         nt.assert_equal(func(1, {'one': 1, 'two': 2}), result_a)
@@ -190,7 +219,6 @@ class CacheTestCase(unittest.TestCase):
                 a = 0
             return a + random.random()
 
-        self.func = func
         result_a = func()
         result_b = func(5)
 
@@ -205,7 +233,6 @@ class CacheTestCase(unittest.TestCase):
         def func(a, b, c=1):
             return a + b + c + random.randrange(0, 100000)
 
-        self.func = func
         nt.assert_equal(func(1, 2), func(1, 2, c=1))
         nt.assert_equal(func(1, 2), func(1, 2, 1))
         nt.assert_equal(func(1, 2), func(1, 2))
@@ -223,7 +250,6 @@ class CacheTestCase(unittest.TestCase):
             def __init__(self, value):
                 self.value = value
 
-        self.func = func
         adder = Adder(15)
         adder2 = Adder(20)
 
@@ -248,7 +274,6 @@ class CacheTestCase(unittest.TestCase):
             def add(self, b):
                 return self.initial + b
 
-        self.func = Adder.add
         adder1 = Adder(1)
         adder2 = Adder(2)
 
@@ -266,7 +291,6 @@ class CacheTestCase(unittest.TestCase):
             def add(self, b):
                 return self.initial + b + random.random()
 
-        self.func = Adder.add
         adder1 = Adder(1)
         adder2 = Adder(2)
 
@@ -299,7 +323,6 @@ class CacheTestCase(unittest.TestCase):
             def func(cls, a, b):
                 return a + b + random.randrange(0, 100000)
 
-        self.func = Mock.func
         result = Mock.func(5, 2)
         result2 = Mock.func(5, 3)
         time.sleep(1)
@@ -319,7 +342,6 @@ class CacheTestCase(unittest.TestCase):
             rand = random.randrange(0, 100000)
             return sum(a) + sum(b) + sum(c) + sum(d) + rand
 
-        self.func = func
         expected = func([5, 3, 2], [1], c=[3, 3], d=[3, 3])
         nt.assert_equal(func([5, 3, 2], [1], d=[3, 3], c=[3, 3]), expected)
 
@@ -333,7 +355,6 @@ class CacheTestCase(unittest.TestCase):
             rand = random.randrange(0, 100000)
             return sum(a) + sum(b) + sum(c) + sum(d) + rand
 
-        self.func = func
         result_a = func([5, 3, 2], [1], c=[3, 3], d=[3, 3])
         self.cache.delete_memoized(func, [5, 3, 2], [1], [3, 3], [3, 3])
         result_b = func([5, 3, 2], [1], c=[3, 3], d=[3, 3])
@@ -365,7 +386,6 @@ class CacheTestCase(unittest.TestCase):
         def func(a, b, c=None, d=None):
             return sum(a) + sum(b) + random.randrange(0, 100000)
 
-        self.func = func
         expected = (1, 2, 'foo', 'bar')
 
         args = self.cache._gen_args(func, 1, 2, 'foo', 'bar')
@@ -384,119 +404,135 @@ class CacheTestCase(unittest.TestCase):
         nt.assert_equal(tuple(args), expected)
 
 
-class NSCacheTestCase(unittest.TestCase):
-    def _get_config(self):
-        return get_cache_config('simple')
-
-    def setUp(self):
-        self.config = self._get_config()
+class TestNSCache(object):
+    def setup(self):
         self.namespace = 'https://github.com/reubano/mezmorize'
-        self.cache = Cache(namespace=self.namespace, **self.config)
+        self.cache = setup_func('simple', namespace=self.namespace)
 
-    def tearDown(self):
-        self.cache = {}
+    def teardown(self):
+        self.cache.clear()
 
     def test_memoize(self):
         def func(a, b):
             return a + b + random.randrange(0, 100000)
 
-        cache = Cache(namespace=self.namespace, **self.config)
+        config = get_cache_config('simple')
+        cache = Cache(namespace=self.namespace, **config)
         cache_key1 = self.cache._memoize_make_cache_key()(func)
         cache_key2 = cache._memoize_make_cache_key()(func)
         nt.assert_equal(cache_key1, cache_key2)
 
 
-class FileSystemCacheTestCase(CacheTestCase):
-    def _get_config(self):
-        return get_cache_config('filesystem', CACHE_DIR='/tmp')
+class TestFileSystemCache(TestCache):
+    def setup(self):
+        self.cache = setup_func('filesystem', CACHE_DIR='/tmp')
+
+    def teardown(self):
+        self.cache.clear()
 
     def test_dict_config(self):
-        nt.assert_equal(self.cache.config['CACHE_TYPE'], 'filesystem')
-        nt.assert_is_instance(self.cache.cache, FileSystemCache)
+        check_cache_type(self.cache, 'filesystem')
+        check_cache_instance(self.cache, FileSystemCache)
 
 
 if HAS_MEMCACHE:
-    class MemcachedCacheTestCase(CacheTestCase):
-        def _get_config(self):
-            return get_cache_config('memcached')
+    class TestMemcachedCache(TestCache):
+        def setup(self, client_name=None):
+            self.cache = setup_func('memcached', client_name=client_name)
+
+        def teardown(self):
+            self.cache.clear()
 
         def test_dict_config(self):
-            nt.assert_equal(self.cache.config['CACHE_TYPE'], 'memcached')
-            nt.assert_is_instance(self.cache.cache, MemcachedCache)
+            for client_name in AVAIL_MEMCACHES:
+                self.setup(client_name=client_name)
+                yield check_cache_type, self.cache, 'memcached'
+                yield check_cache_instance, self.cache, MemcachedCache
+                yield check_client_name, self.cache, client_name
+                self.teardown()
 
         def test_mc_large_value(self):
-            cache = Cache(**self.config)
+            for client_name in AVAIL_MEMCACHES:
+                self.setup(client_name=client_name)
+                yield check_too_big, self.cache, BIGINT
+                self.teardown()
 
-            with nt.assert_raises(cache.cache.TooBig):
-                cache.set('big', 'a' * BIGINT)
-
-            nt.assert_is_none(cache.get('big'))
 else:
-    print('MemcachedCacheTestCase requires Memcache')
+    print('TestMemcachedCache requires Memcache')
 
 if HAS_MEMCACHE:
-    class SASLMemcachedCacheTestCase(CacheTestCase):
-        def _get_config(self):
-            return get_cache_config('saslmemcached')
+    class TestSASLMemcachedCache(TestCache):
+        def setup(self, client_name=None):
+            self.cache = setup_func('saslmemcached', client_name=client_name)
+
+        def teardown(self):
+            self.cache.clear()
 
         def test_dict_config(self):
-            nt.assert_equal(self.cache.config['CACHE_TYPE'], 'saslmemcached')
-            nt.assert_is_instance(self.cache.cache, SASLMemcachedCache)
+            for client_name in AVAIL_MEMCACHES:
+                self.setup(client_name=client_name)
+                yield check_cache_type, self.cache, 'saslmemcached'
+                yield check_cache_instance, self.cache, SASLMemcachedCache
+                self.teardown()
 
         def test_mc_large_value(self):
-            cache = Cache(**self.config)
+            for client_name in AVAIL_MEMCACHES:
+                self.setup(client_name=client_name)
+                yield check_too_big, self.cache, BIGINT
+                self.teardown()
 
-            with nt.assert_raises(cache.cache.TooBig):
-                cache.set('big', 'a' * BIGINT)
-
-            nt.assert_is_none(cache.get('big'))
 else:
-    print('SASLMemcachedCacheTestCase requires Memcache')
+    print('TestSASLMemcachedCache requires Memcache')
 
 if HAS_MEMCACHE:
-    class SpreadSASLMemcachedCacheTestCase(CacheTestCase):
-        def _get_config(self):
-            return get_cache_config('spreadsaslmemcached')
+    class TestSpreadSASLMemcachedCache(TestCache):
+        def setup(self, client_name=None):
+            cache_type = 'spreadsaslmemcached'
+            self.cache = setup_func(cache_type, client_name=client_name)
+
+        def teardown(self):
+            self.cache.clear()
 
         def test_dict_config(self):
-            CACHE_TYPE = self.cache.config['CACHE_TYPE']
-            nt.assert_equal(CACHE_TYPE, 'spreadsaslmemcached')
-            nt.assert_is_instance(self.cache.cache, SpreadSASLMemcachedCache)
+            for client_name in AVAIL_MEMCACHES:
+                self.setup(client_name=client_name)
+                cache_instance = SpreadSASLMemcachedCache
+                yield check_cache_type, self.cache, 'spreadsaslmemcached'
+                yield check_cache_instance, self.cache, cache_instance
+                self.teardown()
 
         def test_mc_large_value(self):
-            cache = Cache(**self.config)
-            cache.set('big', 'a' * BIGINT)
-            nt.assert_equal(cache.get('big'), 'a' * BIGINT)
-
-            cache.delete('big')
-            nt.assert_is_none(cache.get('big'))
-
-            with nt.assert_raises(ValueError):
-                cache.set('big', 'a' * BIGGERINT)
+            for client_name in AVAIL_MEMCACHES:
+                self.setup(client_name=client_name)
+                yield check_set_delete, self.cache, 'big', 'a', BIGINT
+                yield check_too_big, self.cache, BIGGERINT, ValueError
+                self.teardown()
 else:
-    print('SpreadSASLMemcachedCacheTestCase requires Memcache')
+    print('TestSpreadSASLMemcachedCache requires Memcache')
 
 if HAS_REDIS:
-    class RedisCacheTestCase(CacheTestCase):
-        def _get_config(self):
-            return get_cache_config('redis')
+    class TestRedisCache(TestCache):
+        def setup(self, db=0):
+            self.cache = setup_func('redis', db=db)
+            self.client = self.cache.cache._client
+
+        def teardown(self):
+            self.cache.clear()
 
         def test_dict_config(self):
-            nt.assert_equal(self.cache.config['CACHE_TYPE'], 'redis')
-            nt.assert_is_instance(self.cache.cache, RedisCache)
+            check_cache_type(self.cache, 'redis')
+            check_cache_instance(self.cache, RedisCache)
 
         def test_redis_url_default_db(self):
-            client = self.cache.cache._client
-            rconn = client.connection_pool.get_connection('foo')
+            rconn = self.client.connection_pool.get_connection('foo')
             nt.assert_equal(rconn.db, 0)
 
         def test_redis_url_custom_db(self):
-            self.config = get_cache_config('redis', db=2)
-            cache = Cache(**self.config)
-            rconn = cache.cache._client.connection_pool.get_connection('foo')
+            self.setup(db=2)
+            rconn = self.client.connection_pool.get_connection('foo')
             nt.assert_equal(rconn.db, 2)
 else:
-    print('RedisCacheTestCase requires Redis')
+    print('TestRedisCache requires Redis')
 
 if __name__ == '__main__':
-    unittest.main()
+    nt.main()

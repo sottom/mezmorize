@@ -96,7 +96,7 @@ class Cache(object):
     """
     This class is used to control the cache objects.
     """
-    def __init__(self, namespace='', **config):
+    def __init__(self, namespace=None, **config):
         config.setdefault('CACHE_DEFAULT_TIMEOUT', 300)
         config.setdefault('CACHE_THRESHOLD', 500)
         config.setdefault('CACHE_KEY_PREFIX', 'mezmorize_')
@@ -113,7 +113,7 @@ class Cache(object):
             warnings.warn(
                 'CACHE_TYPE is set to null, caching is effectively disabled.')
 
-        self.namespace = str(namespace)
+        self.namespace = str(namespace or '')
         self.config = config
         self._set_cache()
 
