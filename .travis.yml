@@ -2,7 +2,6 @@ sudo: false
 language: python
 python:
   - 2.7
-  - 3.4
   - 3.5
   - 3.6
   - pypy
@@ -27,13 +26,6 @@ env:
     - PYPY_PATH=$PYENV_ROOT/versions
     - PATH="$PYENV_ROOT/shims:${PATH}"
     - PATH="$PYENV_ROOT/bin:${PATH}"
-
-matrix:
-  exclude:
-  - python: pypy
-    env: OPTIONAL=true
-  - python: pypy3
-    env: OPTIONAL=true
 
 notifications:
   email:
