@@ -19,6 +19,8 @@ import warnings
 from importlib import import_module
 from functools import partial, wraps
 
+from werkzeug.contrib.cache import _test_memcached_key
+
 from . import backends
 
 __version__ = '0.18.2'
@@ -117,6 +119,7 @@ class Cache(object):
 
     def _set_cache(self):
         module_string = self.config['CACHE_TYPE']
+        self.is_memcached = 'memcache' in module_string
 
         if '.' not in module_string:
             try:
@@ -134,6 +137,25 @@ class Cache(object):
             kwargs.update(self.config['CACHE_OPTIONS'])
 
         self.cache = cache_obj(self.config, *args, **kwargs)
+
+    def _gen_mapping(self, *args):
+        for key in args:
+            if _test_memcached_key(key):
+                encoded_key = self.cache._normalize_key(key)
+                yield (encoded_key, key)
+
+    # https://github.com/pallets/werkzeug/pull/1161
+    def get_values(self, *args):
+        are_strings = (isinstance(key, str) for key in args)
+        has_encoded_keys = self.cache.key_prefix or not all(are_strings)
+        key_mapping = dict(self._gen_mapping(*args))
+        keys = list(key_mapping)
+        rv = self.cache._client.get_multi(keys)
+
+        if has_encoded_keys:
+            rv = {key_mapping[key]: value for key, value in rv.items()}
+
+        return [rv.get(key) for key in args]
 
     def get(self, *args, **kwargs):
         "Proxy function for internal cache object."
@@ -161,7 +183,12 @@ class Cache(object):
 
     def get_many(self, *args, **kwargs):
         "Proxy function for internal cache object."
-        return self.cache.get_many(*args, **kwargs)
+        if self.is_memcached:
+            values = self.get_values(*args)
+        else:
+            values = self.cache.get_many(*args, **kwargs)
+
+        return values
 
     def set_many(self, *args, **kwargs):
         "Proxy function for internal cache object."
@@ -200,7 +227,7 @@ class Cache(object):
             self.cache.delete_many(fetch_keys[-1])
             return fname, None
 
-        version_data_list = list(self.cache.get_many(*fetch_keys))
+        version_data_list = list(self.get_many(*fetch_keys))
         dirty = False
 
         if version_data_list[0] is None:
