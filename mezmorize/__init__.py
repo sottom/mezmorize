@@ -102,7 +102,7 @@ class Cache(object):
         config.setdefault('CACHE_KEY_PREFIX', 'mezmorize_')
         config.setdefault('CACHE_MEMCACHED_SERVERS', None)
         config.setdefault('CACHE_DIR', None)
-        config.setdefault('CACHE_OPTIONS', None)
+        config.setdefault('CACHE_OPTIONS', {})
         config.setdefault('CACHE_ARGS', [])
         config.setdefault('CACHE_TYPE', 'simple')
         config.setdefault('CACHE_NO_NULL_WARNING', False)
@@ -119,6 +119,7 @@ class Cache(object):
 
     def _set_cache(self):
         module_string = self.config['CACHE_TYPE']
+        default_timeout = self.config['CACHE_DEFAULT_TIMEOUT']
         self.is_memcached = 'memcache' in module_string
 
         if '.' not in module_string:
@@ -131,11 +132,8 @@ class Cache(object):
             cache_obj = import_module(module_string)
 
         args = self.config['CACHE_ARGS'][:]
-        kwargs = {'default_timeout': self.config['CACHE_DEFAULT_TIMEOUT']}
-
-        if self.config['CACHE_OPTIONS']:
-            kwargs.update(self.config['CACHE_OPTIONS'])
-
+        kwargs = self.config['CACHE_OPTIONS']
+        kwargs.setdefault('default_timeout', default_timeout)
         self.cache = cache_obj(self.config, *args, **kwargs)
 
     def _gen_mapping(self, *args):
