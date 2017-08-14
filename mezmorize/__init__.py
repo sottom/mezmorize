@@ -233,8 +233,8 @@ class Cache(object):
             altfname = make_name(fname) if callable(make_name) else fname
 
             if callable(f):
-                keyargs, keykwargs = self._memoize_kwargs_to_args(
-                    f, *args, **kwargs)
+                keyargs = tuple(self._gen_args(f, *args, **kwargs))
+                keykwargs = {}
             else:
                 keyargs, keykwargs = args, kwargs
 
@@ -248,59 +248,36 @@ class Cache(object):
             return cache_key
         return make_cache_key
 
-    def _memoize_kwargs_to_args(self, f, *args, **kwargs):
-        #: Inspect the arguments to the function
-        #: This allows the memoization to be the same
-        #: whether the function was called with
-        #: 1, b=2 is equivalent to a=1, b=2, etc.
-        new_args = []
-        arg_num = 0
+    def _gen_args(self, f, *args, **kwargs):
+        # Inspect the arguments to the function
+        # This allows the memoization to be the same
+        # whether the function was called with
+        # 1, b=2 is equivalent to a=1, b=2, etc.
+        num_args = len(args)
         argspec = inspect.getargspec(f)
-        args_len = len(argspec.args)
-        defaults = argspec.defaults
+        _defaults = argspec.defaults or []
+        m_args = argspec.args
+        defaults = dict(zip(reversed(m_args), reversed(_defaults)))
+        counter = 0
 
-        for i in range(args_len):
-            if i == 0 and argspec.args[i] in ('self', 'cls'):
-                #: use the repr of the class instance
-                #: this supports instance methods for
-                #: the memoized functions, giving more
-                #: flexibility to developers
-                arg = repr(args[0])
-                arg_num += 1
-            elif argspec.args[i] in kwargs:
-                arg = kwargs[argspec.args[i]]
-            elif arg_num < len(args):
-                arg = args[arg_num]
-                arg_num += 1
-            elif defaults and abs(i - args_len) <= len(defaults):
-                arg = defaults[i - args_len]
-                arg_num += 1
+        for i, m_arg in enumerate(m_args):
+            # Subtract from i, m_args that aren't in args
+            arg_num = i - counter
+
+            if not i and m_arg in ('self', 'cls'):
+                # supports instance methods for the memoized functions
+                new_arg = repr(args[0])
+            elif kwargs.get(m_arg) is not None:
+                new_arg = kwargs[m_arg]
+                counter += 1
+            elif arg_num < num_args:
+                new_arg = args[arg_num]
+            elif defaults.get(m_arg) is not None:
+                new_arg = defaults[m_arg]
             else:
-                arg = None
-                arg_num += 1
+                new_arg = None
 
-            #: Attempt to convert all arguments to a
-            #: hash/id or a representation?
-            #: Not sure if this is necessary, since
-            #: using objects as keys gets tricky quickly.
-            # if hasattr(arg, '__class__'):
-            #     try:
-            #         arg = hash(arg)
-            #     except:
-            #         arg = repr(arg)
-
-            #: Or what about a special __cacherepr__ function
-            #: on an object, this allows objects to act normal
-            #: upon inspection, yet they can define a representation
-            #: that can be used to make the object unique in the
-            #: cache key. Given that a case comes across that
-            #: an object "must" be used as a cache key
-            # if hasattr(arg, '__cacherepr__'):
-            #     arg = arg.__cacherepr__
-
-            new_args.append(arg)
-
-        return tuple(new_args), {}
+            yield new_arg
 
     def memoize(self, timeout=None, make_name=None, unless=None):
         """

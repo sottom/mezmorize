@@ -369,25 +369,20 @@ class CacheTestCase(unittest.TestCase):
         self.func = func
         expected = (1, 2, 'foo', 'bar')
 
-        args, kwargs = self.cache._memoize_kwargs_to_args(
-            func, 1, 2, 'foo', 'bar')
-        nt.assert_equal(args, expected)
+        args = self.cache._gen_args(func, 1, 2, 'foo', 'bar')
+        nt.assert_equal(tuple(args), expected)
 
-        args, kwargs = self.cache._memoize_kwargs_to_args(
-            func, 2, 'foo', 'bar', a=1)
-        nt.assert_equal(args, expected)
+        args = self.cache._gen_args(func, 2, 'foo', 'bar', a=1)
+        nt.assert_equal(tuple(args), expected)
 
-        args, kwargs = self.cache._memoize_kwargs_to_args(
-            func, a=1, b=2, c='foo', d='bar')
-        nt.assert_equal(args, expected)
+        args = self.cache._gen_args(func, a=1, b=2, c='foo', d='bar')
+        nt.assert_equal(tuple(args), expected)
 
-        args, kwargs = self.cache._memoize_kwargs_to_args(
-            func, d='bar', b=2, a=1, c='foo')
-        nt.assert_equal(args, expected)
+        args = self.cache._gen_args(func, d='bar', b=2, a=1, c='foo')
+        nt.assert_equal(tuple(args), expected)
 
-        args, kwargs = self.cache._memoize_kwargs_to_args(
-            func, 1, 2, d='bar', c='foo')
-        nt.assert_equal(args, expected)
+        args = self.cache._gen_args(func, 1, 2, d='bar', c='foo')
+        nt.assert_equal(tuple(args), expected)
 
 
 class NSCacheTestCase(unittest.TestCase):
