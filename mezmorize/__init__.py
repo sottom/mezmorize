@@ -228,8 +228,8 @@ class Cache(object):
             fname, version_data = self._memoize_version(
                 f, *args, timeout=_timeout)
 
-            #: this should have to be after version_data, so that it
-            #: does not break the delete_memoized functionality.
+            # this should have to be after version_data, so that it
+            # does not break the delete_memoized functionality.
             altfname = make_name(fname) if callable(make_name) else fname
 
             if callable(f):
@@ -320,7 +320,7 @@ class Cache(object):
             ... def big_foo(a, b):
             ...     return a + b + random.random()
 
-        .. code-block:: pycon
+        .. code-block:: python
 
             >>> big_foo(5, 2)
             7.958704852413581
@@ -417,7 +417,7 @@ class Cache(object):
             ... def param_func(a, b):
             ...    return a + b + random.random()
 
-        .. code-block:: pycon
+        .. code-block:: python
 
             >>> random_func()
             0.9587048524135806
@@ -456,7 +456,7 @@ class Cache(object):
             ...    def add(self, b):
             ...        return b + random.random()
 
-        .. code-block:: pycon
+        .. code-block:: python
 
             >>> adder1 = Adder()
             >>> adder2 = Adder()
