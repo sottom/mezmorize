@@ -125,8 +125,9 @@ def get_cache_config(cache_type, db=None, **kwargs):
     if db and redis_url:
         config['CACHE_REDIS_URL'] = '{}/{}'.format(redis_url, db)
 
-    [kwargs.setdefault(k, v) for k, v in MEMOIZE_DEFAULTS.items()]
-    config.update(kwargs)
+    options = {k: v for k, v in kwargs.items() if v is not None}
+    [options.setdefault(k, v) for k, v in MEMOIZE_DEFAULTS.items()]
+    config.update(options)
     return config
 
 

@@ -25,6 +25,8 @@ except ImportError:
 
 CONFIG_LOOKUP = {
     'servers': 'CACHE_MEMCACHED_SERVERS',
+    'threshold': 'CACHE_THRESHOLD',
+    'timeout': 'CACHE_TIMEOUT',
     'username': 'CACHE_MEMCACHED_USERNAME',
     'password': 'CACHE_MEMCACHED_PASSWORD',
     'key_prefix': 'CACHE_KEY_PREFIX'}
@@ -32,7 +34,10 @@ CONFIG_LOOKUP = {
 
 def gen_config_items(*keys, **config):
     for key in keys:
-        yield (key, config[CONFIG_LOOKUP[key]])
+        config_key = CONFIG_LOOKUP[key]
+
+        if config_key in config:
+            yield (key, config[config_key])
 
 
 def get_mc_client(module_name, servers=(DEF_SERVERS,), binary=True, **kwargs):
@@ -86,18 +91,20 @@ def null(config, *args, **kwargs):
 
 
 def simple(config, *args, **kwargs):
-    kwargs.update({'threshold': config['CACHE_THRESHOLD']})
+    config_items = gen_config_items('threshold', 'timeout', **config)
+    kwargs.update(dict(config_items))
     return SimpleCache(*args, **kwargs)
 
 
 def memcached(config, *args, **kwargs):
-    config_items = gen_config_items('servers', 'key_prefix', **config)
+    keys = ('timeout', 'servers', 'key_prefix')
+    config_items = gen_config_items(*keys, **config)
     kwargs.update(dict(config_items))
     return MemcachedCache(*args, **kwargs)
 
 
 def saslmemcached(config, **kwargs):
-    keys = ('servers', 'username', 'password', 'key_prefix')
+    keys = ('timeout', 'servers', 'username', 'password', 'key_prefix')
     config_items = gen_config_items(*keys, **config)
     kwargs.update(dict(config_items))
     return SASLMemcachedCache(**kwargs)
@@ -105,7 +112,8 @@ def saslmemcached(config, **kwargs):
 
 def filesystem(config, *args, **kwargs):
     args = chain([config['CACHE_DIR']], args)
-    kwargs.update({'threshold': config['CACHE_THRESHOLD']})
+    config_items = gen_config_items('threshold', 'timeout', **config)
+    kwargs.update(dict(config_items))
     return FileSystemCache(*args, **kwargs)
 
 
@@ -201,7 +209,7 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
 
 
 def spreadsaslmemcached(config, *args, **kwargs):
-    keys = ('servers', 'username', 'password', 'key_prefix')
+    keys = ('timeout', 'servers', 'username', 'password', 'key_prefix')
     config_items = gen_config_items(*keys, **config)
     kwargs.update(dict(config_items))
     return SpreadSASLMemcachedCache(*args, **kwargs)
