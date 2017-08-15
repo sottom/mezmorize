@@ -10,13 +10,15 @@
 import pickle
 
 from itertools import chain
+
 from werkzeug.contrib.cache import (
     NullCache, SimpleCache, MemcachedCache as _MemcachedCache, FileSystemCache,
     RedisCache)
 
 from .utils import (
-    DEF_SERVERS, IS_PY3, HAS_MEMCACHE, AVAIL_MEMCACHES, get_pylibmc_client,
-    get_pymemcache_client, get_bmemcached_client)
+    DEF_MC_SERVERS, IS_PY3, HAS_MEMCACHE, AVAIL_MEMCACHES, get_pylibmc_client,
+    get_pymemcache_client, get_bmemcached_client, DEF_REDIS_HOST,
+    DEF_REDIS_PORT, DEF_DEFAULT_TIMEOUT)
 
 try:
     from redis import from_url
@@ -25,17 +27,23 @@ except ImportError:
 
 CONFIG_LOOKUP = {
     'servers': 'CACHE_MEMCACHED_SERVERS',
+    'threshold': 'CACHE_THRESHOLD',
+    'timeout': 'CACHE_TIMEOUT',
     'username': 'CACHE_MEMCACHED_USERNAME',
     'password': 'CACHE_MEMCACHED_PASSWORD',
     'key_prefix': 'CACHE_KEY_PREFIX'}
 
 
-def gen_config_items(*keys, **config):
+def gen_defaults(*keys, **config):
     for key in keys:
-        yield (key, config[CONFIG_LOOKUP[key]])
+        config_key = CONFIG_LOOKUP[key]
+
+        if config_key in config:
+            yield (key, config[config_key])
 
 
-def get_mc_client(module_name, servers=(DEF_SERVERS,), binary=True, **kwargs):
+def get_mc_client(module_name, binary=True, **kwargs):
+    servers = kwargs.pop('servers', (DEF_MC_SERVERS,))
     timeout = kwargs.pop('timeout', None)
 
     if module_name == 'pylibmc':
@@ -51,7 +59,7 @@ def get_mc_client(module_name, servers=(DEF_SERVERS,), binary=True, **kwargs):
 
 class MemcachedCache(_MemcachedCache):
     def __init__(self, *args, **kwargs):
-        default_timeout = kwargs.pop('default_timeout', 300)
+        default_timeout = kwargs.pop('default_timeout', DEF_DEFAULT_TIMEOUT)
         key_prefix = kwargs.pop('key_prefix', None)
 
         if not HAS_MEMCACHE:
@@ -86,32 +94,35 @@ def null(config, *args, **kwargs):
 
 
 def simple(config, *args, **kwargs):
-    kwargs.update({'threshold': config['CACHE_THRESHOLD']})
+    defaults = dict(gen_defaults('threshold', 'timeout', **config))
+    defaults.update(kwargs)
     return SimpleCache(*args, **kwargs)
 
 
 def memcached(config, *args, **kwargs):
-    config_items = gen_config_items('servers', 'key_prefix', **config)
-    kwargs.update(dict(config_items))
+    keys = ('timeout', 'servers', 'key_prefix')
+    defaults = dict(gen_defaults(*keys, **config))
+    defaults.update(kwargs)
     return MemcachedCache(*args, **kwargs)
 
 
 def saslmemcached(config, **kwargs):
-    keys = ('servers', 'username', 'password', 'key_prefix')
-    config_items = gen_config_items(*keys, **config)
-    kwargs.update(dict(config_items))
+    keys = ('timeout', 'servers', 'username', 'password', 'key_prefix')
+    defaults = dict(gen_defaults(*keys, **config))
+    defaults.update(kwargs)
     return SASLMemcachedCache(**kwargs)
 
 
 def filesystem(config, *args, **kwargs):
     args = chain([config['CACHE_DIR']], args)
-    kwargs.update({'threshold': config['CACHE_THRESHOLD']})
+    defaults = dict(gen_defaults('threshold', 'timeout', **config))
+    defaults.update(kwargs)
     return FileSystemCache(*args, **kwargs)
 
 
 def redis(config, *args, **kwargs):
-    kwargs.setdefault('host', config.get('CACHE_REDIS_HOST', 'localhost'))
-    kwargs.setdefault('port', config.get('CACHE_REDIS_PORT', 6379))
+    kwargs.setdefault('host', config.get('CACHE_REDIS_HOST', DEF_REDIS_HOST))
+    kwargs.setdefault('port', config.get('CACHE_REDIS_PORT', DEF_REDIS_PORT))
     kwargs.setdefault('password', config.get('CACHE_REDIS_PASSWORD'))
     kwargs.setdefault('key_prefix', config.get('CACHE_KEY_PREFIX'))
     kwargs.setdefault('db', config.get('CACHE_REDIS_DB'))
@@ -131,6 +142,9 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
     Spreading require using pickle to store the value, which can significantly
     impact the performances.
     """
+    DEF_CHUNKSIZE = 2 ** 20 - 2 ** 7  # 1048448
+    DEF_MAXCHUNKS = 32
+
     def __init__(self, *args, **kwargs):
         """
         Kwargs:
@@ -138,21 +152,21 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
                 memcached (memcache has an upper limit of 1MB for values,
                 default: 1048448)
         """
-        self.CHUNKSIZE = kwargs.get('chunksize', 1048448)
+        self.CHUNKSIZE = kwargs.get('chunksize', self.DEF_CHUNKSIZE)
         self.MARKER = 'SpreadSASLMemcachedCache.SpreadedValue'
-        self.maxchunks = kwargs.get('maxchunks', 32)
+        self.MAXCHUNKS = kwargs.get('maxchunks', self.DEF_MAXCHUNKS)
         super(SpreadSASLMemcachedCache, self).__init__(*args, **kwargs)
         self.super = super(SpreadSASLMemcachedCache, self)
 
     def _genkeys(self, key):
-        return ('{}.{}'.format(key, i) for i in range(self.maxchunks))
+        return ('{}.{}'.format(key, i) for i in range(self.MAXCHUNKS))
 
     def _gen_kv(self, key, pickled):
         chunks = range(0, len(pickled), self.CHUNKSIZE)
 
-        if len(chunks) > self.maxchunks:
+        if len(chunks) > self.MAXCHUNKS:
             msg = 'Value exceed maximum number of keys ({})'
-            raise ValueError(msg.format(self.maxchunks))
+            raise ValueError(msg.format(self.MAXCHUNKS))
 
         for i in chunks:
             _key = '{}.{}'.format(key, i // self.CHUNKSIZE)
@@ -201,7 +215,7 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
 
 
 def spreadsaslmemcached(config, *args, **kwargs):
-    keys = ('servers', 'username', 'password', 'key_prefix')
-    config_items = gen_config_items(*keys, **config)
-    kwargs.update(dict(config_items))
+    keys = ('timeout', 'servers', 'username', 'password', 'key_prefix')
+    defaults = dict(gen_defaults(*keys, **config))
+    defaults.update(kwargs)
     return SpreadSASLMemcachedCache(*args, **kwargs)

@@ -35,23 +35,30 @@ except ImportError:
 
 IS_PY3 = sys.version_info.major == 3
 
+DEF_THRESHOLD = 2048
+DEF_DEFAULT_TIMEOUT = 3600
+DEF_MC_HOST = DEF_REDIS_HOST = 'localhost'
+DEF_MC_PORT = 11211
+DEF_REDIS_PORT = 6379
+
 ALL_MEMCACHES = (
     ('pylibmc', pylibmc), ('pymemcache', pymemcache),
     ('bmemcached', bmemcached))
 
-DEF_SERVERS = '127.0.0.1:11211'
-MEMOIZE_DEFAULTS = {'CACHE_THRESHOLD': 2048, 'CACHE_DEFAULT_TIMEOUT': 3600}
+DEF_MC_SERVERS = '{}:{}'.format(DEF_MC_HOST, DEF_MC_PORT)
 MC_SERVERS = getenv('MEMCACHIER_SERVERS') or getenv('MEMCACHEDCLOUD_SERVERS')
-MC_SERVERS = MC_SERVERS or getenv('MEMCACHE_SERVERS') or DEF_SERVERS
+MC_SERVERS = MC_SERVERS or getenv('MEMCACHE_SERVERS') or DEF_MC_SERVERS
 MC_USERNAME = getenv('MEMCACHIER_USERNAME') or getenv('MEMCACHEDCLOUD_USERNAME')
 MC_PASSWORD = getenv('MEMCACHIER_PASSWORD') or getenv('MEMCACHEDCLOUD_PASSWORD')
 
-REDIS_HOST = getenv('REDIS_PORT_6379_TCP_ADDR', 'localhost')
-DEF_REDIS_URL = 'redis://{}:6379'.format(REDIS_HOST)
+REDIS_HOST = getenv('REDIS_PORT_6379_TCP_ADDR', DEF_REDIS_HOST)
+DEF_REDIS_URL = 'redis://{}:{}'.format(REDIS_HOST, DEF_REDIS_PORT)
 REDIS_URL = getenv('REDIS_URL') or getenv('REDISTOGO_URL') or DEF_REDIS_URL
 
 CACHE_CONFIGS = {
     'simple': {'CACHE_TYPE': 'simple'},
+    'null': {'CACHE_TYPE': 'null'},
+    'redis': {'CACHE_TYPE': 'redis', 'CACHE_REDIS_URL': REDIS_URL},
     'filesystem': {
         'CACHE_TYPE': 'filesystem',
         'CACHE_DIR': getenv('CACHE_DIR')
@@ -71,8 +78,7 @@ CACHE_CONFIGS = {
         'CACHE_MEMCACHED_SERVERS': [MC_SERVERS],
         'CACHE_MEMCACHED_USERNAME': MC_USERNAME,
         'CACHE_MEMCACHED_PASSWORD': MC_PASSWORD
-    },
-    'redis': {'CACHE_TYPE': 'redis', 'CACHE_REDIS_URL': REDIS_URL}
+    }
 }
 
 
@@ -94,14 +100,20 @@ AVAIL_MEMCACHES = {k for k, v in ALL_MEMCACHES if HAS_MEMCACHE and v}
 HAS_REDIS = redis and pgrep('redis')
 
 
-def get_cache_type(spread=False):
-    if HAS_MEMCACHE and MC_USERNAME and spread:
-        cache_type = 'spreadsaslmemcached'
-    elif HAS_MEMCACHE and MC_USERNAME:
-        cache_type = 'saslmemcached'
-    elif HAS_MEMCACHE:
-        cache_type = 'memcached'
-    elif HAS_REDIS:
+def get_cache_type(cache=None, spread=False):
+    if HAS_REDIS and HAS_MEMCACHE and not cache:
+        cache = 'memcached'
+    elif not cache:
+        cache = 'redis' if HAS_REDIS else 'memcached'
+
+    if HAS_MEMCACHE and cache == 'memcached':
+        if MC_USERNAME and spread:
+            cache_type = 'spreadsaslmemcached'
+        elif MC_USERNAME:
+            cache_type = 'saslmemcached'
+        else:
+            cache_type = 'memcached'
+    elif HAS_REDIS and cache == 'redis':
         cache_type = 'redis'
     elif getenv('CACHE_DIR'):
         cache_type = 'filesystem'
@@ -118,8 +130,10 @@ def get_cache_config(cache_type, db=None, **kwargs):
     if db and redis_url:
         config['CACHE_REDIS_URL'] = '{}/{}'.format(redis_url, db)
 
-    [kwargs.setdefault(k, v) for k, v in MEMOIZE_DEFAULTS.items()]
-    config.update(kwargs)
+    options = {k: v for k, v in kwargs.items() if v is not None}
+    options.setdefault('CACHE_THRESHOLD', DEF_THRESHOLD)
+    options.setdefault('CACHE_DEFAULT_TIMEOUT', DEF_DEFAULT_TIMEOUT)
+    config.update(options)
     return config
 
 
