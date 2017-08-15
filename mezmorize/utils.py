@@ -35,6 +35,10 @@ except ImportError:
 
 IS_PY3 = sys.version_info.major == 3
 
+ALL_MEMCACHES = (
+    ('pylibmc', pylibmc), ('pymemcache', pymemcache),
+    ('bmemcached', bmemcached))
+
 DEF_SERVERS = '127.0.0.1:11211'
 MEMOIZE_DEFAULTS = {'CACHE_THRESHOLD': 2048, 'CACHE_DEFAULT_TIMEOUT': 3600}
 MC_SERVERS = getenv('MEMCACHIER_SERVERS') or getenv('MEMCACHEDCLOUD_SERVERS')
@@ -86,6 +90,7 @@ def pgrep(process):
 
 
 HAS_MEMCACHE = (pylibmc or pymemcache or bmemcached) and pgrep('memcache')
+AVAIL_MEMCACHES = {k for k, v in ALL_MEMCACHES if HAS_MEMCACHE and v}
 HAS_REDIS = redis and pgrep('redis')
 
 
@@ -116,3 +121,56 @@ def get_cache_config(cache_type, db=None, **kwargs):
     [kwargs.setdefault(k, v) for k, v in MEMOIZE_DEFAULTS.items()]
     config.update(kwargs)
     return config
+
+
+def get_pylibmc_client(servers, timeout=None, binary=True, **kwargs):
+    from pylibmc import Client
+
+    try:
+        from pylibmc import TooBig
+    except ImportError:
+        from pylibmc import Error, ServerError
+        TooBig = (Error, ServerError)
+
+    if timeout:
+        kwargs['behaviors'] = {'connect_timeout': timeout}
+
+    client = Client(servers, binary=binary, **kwargs)
+    client.TooBig = TooBig
+    return client
+
+
+def get_pymemcache_client(servers, timeout=None, **kwargs):
+    from pymemcache.client.hash import HashClient
+
+    from pymemcache.serde import (
+        python_memcache_serializer, python_memcache_deserializer)
+
+    kwargs.setdefault('serializer', python_memcache_serializer)
+    kwargs.setdefault('deserializer', python_memcache_deserializer)
+
+    if timeout:
+        kwargs['timeout'] = timeout
+
+    split = [s.split(':') for s in servers]
+    _servers = [(host, int(port)) for host, port in split]
+    client = HashClient(_servers, **kwargs)
+
+    try:
+        client.TooBig = ConnectionResetError
+    except NameError:
+        import socket
+        client.TooBig = socket.error
+
+    return client
+
+
+def get_bmemcached_client(servers, timeout=None, **kwargs):
+    from bmemcached import Client
+
+    if timeout:
+        kwargs['socket_timeout'] = timeout
+
+    client = Client(servers, **kwargs)
+    client.TooBig = None
+    return client

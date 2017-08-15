@@ -23,7 +23,7 @@ from werkzeug.contrib.cache import _test_memcached_key
 
 from . import backends
 
-__version__ = '0.19.0'
+__version__ = '0.20.0'
 __title__ = 'mezmorize'
 __package_name__ = 'mezmorize'
 __author__ = 'Reuben Cummings'
@@ -96,13 +96,13 @@ class Cache(object):
     """
     This class is used to control the cache objects.
     """
-    def __init__(self, namespace='', **config):
+    def __init__(self, namespace=None, **config):
         config.setdefault('CACHE_DEFAULT_TIMEOUT', 300)
         config.setdefault('CACHE_THRESHOLD', 500)
         config.setdefault('CACHE_KEY_PREFIX', 'mezmorize_')
         config.setdefault('CACHE_MEMCACHED_SERVERS', None)
         config.setdefault('CACHE_DIR', None)
-        config.setdefault('CACHE_OPTIONS', None)
+        config.setdefault('CACHE_OPTIONS', {})
         config.setdefault('CACHE_ARGS', [])
         config.setdefault('CACHE_TYPE', 'simple')
         config.setdefault('CACHE_NO_NULL_WARNING', False)
@@ -113,12 +113,13 @@ class Cache(object):
             warnings.warn(
                 'CACHE_TYPE is set to null, caching is effectively disabled.')
 
-        self.namespace = str(namespace)
+        self.namespace = str(namespace or '')
         self.config = config
         self._set_cache()
 
     def _set_cache(self):
         module_string = self.config['CACHE_TYPE']
+        default_timeout = self.config['CACHE_DEFAULT_TIMEOUT']
         self.is_memcached = 'memcache' in module_string
 
         if '.' not in module_string:
@@ -130,12 +131,9 @@ class Cache(object):
         else:
             cache_obj = import_module(module_string)
 
-        args = self.config['CACHE_ARGS'][:]
-        kwargs = {'default_timeout': self.config['CACHE_DEFAULT_TIMEOUT']}
-
-        if self.config['CACHE_OPTIONS']:
-            kwargs.update(self.config['CACHE_OPTIONS'])
-
+        args = self.config['CACHE_ARGS']
+        kwargs = self.config['CACHE_OPTIONS']
+        kwargs.setdefault('default_timeout', default_timeout)
         self.cache = cache_obj(self.config, *args, **kwargs)
 
     def _gen_mapping(self, *args):
