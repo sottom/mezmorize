@@ -33,7 +33,7 @@ CONFIG_LOOKUP = {
     'key_prefix': 'CACHE_KEY_PREFIX'}
 
 
-def gen_config_items(*keys, **config):
+def gen_defaults(*keys, **config):
     for key in keys:
         config_key = CONFIG_LOOKUP[key]
 
@@ -93,29 +93,29 @@ def null(config, *args, **kwargs):
 
 
 def simple(config, *args, **kwargs):
-    config_items = gen_config_items('threshold', 'timeout', **config)
-    kwargs.update(dict(config_items))
+    defaults = dict(gen_defaults('threshold', 'timeout', **config))
+    defaults.update(kwargs)
     return SimpleCache(*args, **kwargs)
 
 
 def memcached(config, *args, **kwargs):
     keys = ('timeout', 'servers', 'key_prefix')
-    config_items = gen_config_items(*keys, **config)
-    kwargs.update(dict(config_items))
+    defaults = dict(gen_defaults(*keys, **config))
+    defaults.update(kwargs)
     return MemcachedCache(*args, **kwargs)
 
 
 def saslmemcached(config, **kwargs):
     keys = ('timeout', 'servers', 'username', 'password', 'key_prefix')
-    config_items = gen_config_items(*keys, **config)
-    kwargs.update(dict(config_items))
+    defaults = dict(gen_defaults(*keys, **config))
+    defaults.update(kwargs)
     return SASLMemcachedCache(**kwargs)
 
 
 def filesystem(config, *args, **kwargs):
     args = chain([config['CACHE_DIR']], args)
-    config_items = gen_config_items('threshold', 'timeout', **config)
-    kwargs.update(dict(config_items))
+    defaults = dict(gen_defaults('threshold', 'timeout', **config))
+    defaults.update(kwargs)
     return FileSystemCache(*args, **kwargs)
 
 
@@ -215,6 +215,6 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
 
 def spreadsaslmemcached(config, *args, **kwargs):
     keys = ('timeout', 'servers', 'username', 'password', 'key_prefix')
-    config_items = gen_config_items(*keys, **config)
-    kwargs.update(dict(config_items))
+    defaults = dict(gen_defaults(*keys, **config))
+    defaults.update(kwargs)
     return SpreadSASLMemcachedCache(*args, **kwargs)
