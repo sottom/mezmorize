@@ -174,5 +174,6 @@ def clean():
     except CalledProcessError as e:
         exit(e.returncode)
 
+
 if __name__ == '__main__':
     manager.main()

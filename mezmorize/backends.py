@@ -54,7 +54,10 @@ def get_mc_client(servers=(DEF_SERVERS,), **kwargs):
 
 
 class MemcachedCache(_MemcachedCache):
-    def __init__(self, *args, default_timeout=300, key_prefix=None, **kwargs):
+    def __init__(self, *args, **kwargs):
+        default_timeout = kwargs.pop('default_timeout', 300)
+        key_prefix = kwargs.pop('key_prefix', None)
+
         if not HAS_MEMCACHE:
             raise RuntimeError('No memcache module found.')
 

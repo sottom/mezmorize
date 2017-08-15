@@ -15,8 +15,7 @@ import random
 import nose.tools as nt
 
 from mezmorize import Cache, function_namespace
-from mezmorize.utils import (
-    HAS_MEMCACHE, HAS_REDIS, get_cache_config, IS_PY3)
+from mezmorize.utils import HAS_MEMCACHE, HAS_REDIS, get_cache_config
 
 from mezmorize.backends import (
     SimpleCache, FileSystemCache, RedisCache, MemcachedCache,
@@ -414,6 +413,7 @@ class FileSystemCacheTestCase(CacheTestCase):
     def test_dict_config(self):
         nt.assert_equal(self.cache.config['CACHE_TYPE'], 'filesystem')
         nt.assert_is_instance(self.cache.cache, FileSystemCache)
+
 
 if HAS_MEMCACHE:
     class MemcachedCacheTestCase(CacheTestCase):

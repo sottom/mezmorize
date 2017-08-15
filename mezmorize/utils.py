@@ -84,6 +84,7 @@ def pgrep(process):
     any_env = any(map(getenv, envs))
     return any_env or call(['pgrep', process]) == 0
 
+
 HAS_MEMCACHE = (pylibmc or pymemcache or bmemcached) and pgrep('memcache')
 HAS_REDIS = redis and pgrep('redis')
 
