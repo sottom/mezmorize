@@ -10,6 +10,7 @@
 import pickle
 
 from itertools import chain
+
 from werkzeug.contrib.cache import (
     NullCache, SimpleCache, MemcachedCache as _MemcachedCache, FileSystemCache,
     RedisCache)
