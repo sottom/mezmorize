@@ -22,6 +22,7 @@ from functools import partial, wraps
 from werkzeug.contrib.cache import _test_memcached_key
 
 from . import backends
+from .utils import DEF_THRESHOLD, DEF_DEFAULT_TIMEOUT
 
 __version__ = '0.20.0'
 __title__ = 'mezmorize'
@@ -97,8 +98,8 @@ class Cache(object):
     This class is used to control the cache objects.
     """
     def __init__(self, namespace=None, **config):
-        config.setdefault('CACHE_DEFAULT_TIMEOUT', 300)
-        config.setdefault('CACHE_THRESHOLD', 500)
+        config.setdefault('CACHE_DEFAULT_TIMEOUT', DEF_DEFAULT_TIMEOUT)
+        config.setdefault('CACHE_THRESHOLD', DEF_THRESHOLD)
         config.setdefault('CACHE_KEY_PREFIX', 'mezmorize_')
         config.setdefault('CACHE_MEMCACHED_SERVERS', None)
         config.setdefault('CACHE_DIR', None)
