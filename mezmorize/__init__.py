@@ -23,7 +23,7 @@ from werkzeug.contrib.cache import _test_memcached_key
 
 from . import backends
 
-__version__ = '0.19.0'
+__version__ = '0.20.0'
 __title__ = 'mezmorize'
 __package_name__ = 'mezmorize'
 __author__ = 'Reuben Cummings'
