@@ -11,16 +11,19 @@
 from __future__ import absolute_import, division, print_function
 
 import base64
-import functools
 import hashlib
 import inspect
 import uuid
 import warnings
 
 from importlib import import_module
+from functools import partial, wraps
+
+from werkzeug.contrib.cache import _test_memcached_key
+
 from . import backends
 
-__version__ = '0.18.2'
+__version__ = '0.19.0'
 __title__ = 'mezmorize'
 __package_name__ = 'mezmorize'
 __author__ = 'Reuben Cummings'
@@ -33,18 +36,25 @@ __copyright__ = 'Copyright 2015 Reuben Cummings'
 is_invalid = lambda c: not (c in {'_', '.'} or c.isalnum())
 delchars = filter(is_invalid, map(chr, range(256)))
 
+ENCODING = 'utf-8'
+
 try:
     trans_tbl = ''.maketrans({k: None for k in delchars})
     null_control = (trans_tbl,)
 except AttributeError:
     null_control = (None, ''.join(delchars))
 
+try:
+    from inspect import getfullargspec
+except ImportError:
+    from inspect import getargspec as getfullargspec
+
 
 def function_namespace(f, *args):
     """
     Attempts to returns unique namespace for function
     """
-    m_args = inspect.getargspec(f)[0] or []
+    m_args = getfullargspec(f).args
     instance_token = None
     instance_self = getattr(f, '__self__', None)
 
@@ -82,8 +92,6 @@ def function_namespace(f, *args):
     return ns, ins
 
 
-#: Cache Object
-################
 class Cache(object):
     """
     This class is used to control the cache objects.
@@ -103,7 +111,7 @@ class Cache(object):
 
         if config['CACHE_TYPE'] == 'null' and warning:
             warnings.warn(
-                "CACHE_TYPE is set to null, caching is effectively disabled.")
+                'CACHE_TYPE is set to null, caching is effectively disabled.')
 
         self.namespace = str(namespace)
         self.config = config
@@ -111,12 +119,13 @@ class Cache(object):
 
     def _set_cache(self):
         module_string = self.config['CACHE_TYPE']
+        self.is_memcached = 'memcache' in module_string
 
         if '.' not in module_string:
             try:
                 cache_obj = getattr(backends, module_string)
             except AttributeError:
-                msg = '{} is not a valid FlaskCache backend'
+                msg = '{} is not a valid Mezmorize backend'
                 raise ImportError(msg.format(module_string))
         else:
             cache_obj = import_module(module_string)
@@ -128,6 +137,25 @@ class Cache(object):
             kwargs.update(self.config['CACHE_OPTIONS'])
 
         self.cache = cache_obj(self.config, *args, **kwargs)
+
+    def _gen_mapping(self, *args):
+        for key in args:
+            if _test_memcached_key(key):
+                encoded_key = self.cache._normalize_key(key)
+                yield (encoded_key, key)
+
+    # https://github.com/pallets/werkzeug/pull/1161
+    def get_values(self, *args):
+        are_strings = (isinstance(key, str) for key in args)
+        has_encoded_keys = self.cache.key_prefix or not all(are_strings)
+        key_mapping = dict(self._gen_mapping(*args))
+        keys = list(key_mapping)
+        rv = self.cache._client.get_multi(keys)
+
+        if has_encoded_keys:
+            rv = {key_mapping[key]: value for key, value in rv.items()}
+
+        return [rv.get(key) for key in args]
 
     def get(self, *args, **kwargs):
         "Proxy function for internal cache object."
@@ -155,7 +183,12 @@ class Cache(object):
 
     def get_many(self, *args, **kwargs):
         "Proxy function for internal cache object."
-        return self.cache.get_many(*args, **kwargs)
+        if self.is_memcached:
+            values = self.get_values(*args)
+        else:
+            values = self.cache.get_many(*args, **kwargs)
+
+        return values
 
     def set_many(self, *args, **kwargs):
         "Proxy function for internal cache object."
@@ -172,7 +205,7 @@ class Cache(object):
         else:
             UUID = uuid.uuid4()
 
-        return base64.b64encode(UUID.bytes)[:6].decode('utf-8')
+        return base64.b64encode(UUID.bytes)[:6].decode(ENCODING)
 
     def _memoize_version(self, f, *args, **kwargs):
         """
@@ -182,11 +215,11 @@ class Cache(object):
         delete = kwargs.pop('delete', None)
         fname, instance_fname = function_namespace(f, *args)
         version_key = self._memvname(fname)
-        fetch_keys = [version_key]
 
         if instance_fname:
-            instance_version_key = self._memvname(instance_fname)
-            fetch_keys.append(instance_version_key)
+            fetch_keys = [version_key, self._memvname(instance_fname)]
+        else:
+            fetch_keys = [version_key]
 
         # Only delete the per-instance version key or per-function version
         # key but not both.
@@ -194,7 +227,7 @@ class Cache(object):
             self.cache.delete_many(fetch_keys[-1])
             return fname, None
 
-        version_data_list = list(self.cache.get_many(*fetch_keys))
+        version_data_list = list(self.get_many(*fetch_keys))
         dirty = False
 
         if version_data_list[0] is None:
@@ -227,79 +260,56 @@ class Cache(object):
             fname, version_data = self._memoize_version(
                 f, *args, timeout=_timeout)
 
-            #: this should have to be after version_data, so that it
-            #: does not break the delete_memoized functionality.
+            # this should have to be after version_data, so that it
+            # does not break the delete_memoized functionality.
             altfname = make_name(fname) if callable(make_name) else fname
 
             if callable(f):
-                keyargs, keykwargs = self._memoize_kwargs_to_args(
-                    f, *args, **kwargs)
+                keyargs = tuple(self._gen_args(f, *args, **kwargs))
+                keykwargs = {}
             else:
                 keyargs, keykwargs = args, kwargs
 
             updated = '{0}{1}{2}'.format(altfname, keyargs, keykwargs)
             cache_key = hashlib.md5()
-            cache_key.update(updated.encode('utf-8'))
+            cache_key.update(updated.encode(ENCODING))
             cache_key = base64.b64encode(cache_key.digest())[:16]
-            cache_key = cache_key.decode('utf-8')
+            cache_key = cache_key.decode(ENCODING)
             cache_key += version_data
 
             return cache_key
         return make_cache_key
 
-    def _memoize_kwargs_to_args(self, f, *args, **kwargs):
-        #: Inspect the arguments to the function
-        #: This allows the memoization to be the same
-        #: whether the function was called with
-        #: 1, b=2 is equivalent to a=1, b=2, etc.
-        new_args = []
-        arg_num = 0
-        argspec = inspect.getargspec(f)
-        args_len = len(argspec.args)
-        defaults = argspec.defaults
+    def _gen_args(self, f, *args, **kwargs):
+        # Inspect the arguments to the function
+        # This allows the memoization to be the same
+        # whether the function was called with
+        # 1, b=2 is equivalent to a=1, b=2, etc.
+        num_args = len(args)
+        argspec = getfullargspec(f)
+        _defaults = argspec.defaults or []
+        m_args = argspec.args
+        defaults = dict(zip(reversed(m_args), reversed(_defaults)))
+        counter = 0
 
-        for i in range(args_len):
-            if i == 0 and argspec.args[i] in ('self', 'cls'):
-                #: use the repr of the class instance
-                #: this supports instance methods for
-                #: the memoized functions, giving more
-                #: flexibility to developers
-                arg = repr(args[0])
-                arg_num += 1
-            elif argspec.args[i] in kwargs:
-                arg = kwargs[argspec.args[i]]
-            elif arg_num < len(args):
-                arg = args[arg_num]
-                arg_num += 1
-            elif defaults and abs(i - args_len) <= len(defaults):
-                arg = defaults[i - args_len]
-                arg_num += 1
+        for i, m_arg in enumerate(m_args):
+            # Subtract from i, m_args that aren't in args
+            arg_num = i - counter
+
+            if not i and m_arg in ('self', 'cls'):
+                # supports instance methods for the memoized functions
+                new_arg = repr(args[0])
+            elif kwargs.get(m_arg) is not None:
+                new_arg = kwargs[m_arg]
+                counter += 1
+            elif arg_num < num_args:
+                new_arg = args[arg_num]
+            elif defaults.get(m_arg) is not None:
+                new_arg = defaults[m_arg]
             else:
-                arg = None
-                arg_num += 1
+                new_arg = None
 
-            #: Attempt to convert all arguments to a
-            #: hash/id or a representation?
-            #: Not sure if this is necessary, since
-            #: using objects as keys gets tricky quickly.
-            # if hasattr(arg, '__class__'):
-            #     try:
-            #         arg = hash(arg)
-            #     except:
-            #         arg = repr(arg)
-
-            #: Or what about a special __cacherepr__ function
-            #: on an object, this allows objects to act normal
-            #: upon inspection, yet they can define a representation
-            #: that can be used to make the object unique in the
-            #: cache key. Given that a case comes across that
-            #: an object "must" be used as a cache key
-            # if hasattr(arg, '__cacherepr__'):
-            #     arg = arg.__cacherepr__
-
-            new_args.append(arg)
-
-        return tuple(new_args), {}
+            yield new_arg
 
     def memoize(self, timeout=None, make_name=None, unless=None):
         """
@@ -319,7 +329,7 @@ class Cache(object):
             ... def big_foo(a, b):
             ...     return a + b + random.random()
 
-        .. code-block:: pycon
+        .. code-block:: python
 
             >>> big_foo(5, 2)
             7.958704852413581
@@ -363,7 +373,7 @@ class Cache(object):
         """
 
         def _memoize(f):
-            @functools.wraps(f)
+            @wraps(f)
             def decorated(*args, **kwargs):
                 if callable(unless) and unless():  # bypass cache
                     return f(*args, **kwargs)
@@ -390,7 +400,7 @@ class Cache(object):
             decorated.cache_timeout = timeout
             m_make_cache_key = self._memoize_make_cache_key
             decorated.make_cache_key = m_make_cache_key(make_name, decorated)
-            decorated.delete_memoized = lambda: self.delete_memoized(f)
+            decorated.delete_memoized = partial(self.delete_memoized, f)
             return decorated
 
         return _memoize
@@ -416,7 +426,7 @@ class Cache(object):
             ... def param_func(a, b):
             ...    return a + b + random.random()
 
-        .. code-block:: pycon
+        .. code-block:: python
 
             >>> random_func()
             0.9587048524135806
@@ -455,7 +465,7 @@ class Cache(object):
             ...    def add(self, b):
             ...        return b + random.random()
 
-        .. code-block:: pycon
+        .. code-block:: python
 
             >>> adder1 = Adder()
             >>> adder2 = Adder()

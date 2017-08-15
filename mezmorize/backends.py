@@ -11,35 +11,65 @@ import pickle
 
 from itertools import chain
 from werkzeug.contrib.cache import (
-    BaseCache, NullCache, SimpleCache, MemcachedCache, FileSystemCache,
+    NullCache, SimpleCache, MemcachedCache as _MemcachedCache, FileSystemCache,
     RedisCache)
 
-try:
-    import pylibmc
-except ImportError:
-    TooBig = pylibmc = None
-else:
-    try:
-        from pylibmc import TooBig
-    except ImportError:
-        from pylibmc import Error, ServerError
-        TooBig = (Error, ServerError)
+from .utils import DEF_SERVERS, IS_PY3, HAS_MEMCACHE
 
 try:
     from redis import from_url
 except ImportError:
     from_url = None
 
+CONFIG_LOOKUP = {
+    'servers': 'CACHE_MEMCACHED_SERVERS',
+    'username': 'CACHE_MEMCACHED_USERNAME',
+    'password': 'CACHE_MEMCACHED_PASSWORD',
+    'key_prefix': 'CACHE_KEY_PREFIX'}
 
-class SASLMemcachedCache(MemcachedCache):
-    def __init__(self, **kwargs):
-        servers = kwargs.pop('servers', None) or ['127.0.0.1:11211']
+
+def gen_config_items(*keys, **config):
+    for key in keys:
+        yield (key, config[CONFIG_LOOKUP[key]])
+
+
+def get_mc_client(servers=(DEF_SERVERS,), **kwargs):
+    from pylibmc import Client
+    timeout = kwargs.pop('timeout', None)
+
+    try:
+        from pylibmc import TooBig
+    except ImportError:
+        from pylibmc import Error, ServerError
+        TooBig = (Error, ServerError)
+
+    binary = kwargs.pop('binary', True)
+
+    if timeout:
+        kwargs['behaviors'] = {'connect_timeout': timeout}
+
+    client = Client(servers, binary=binary, **kwargs)
+    client.TooBig = TooBig
+    return client
+
+
+class MemcachedCache(_MemcachedCache):
+    def __init__(self, *args, **kwargs):
         default_timeout = kwargs.pop('default_timeout', 300)
         key_prefix = kwargs.pop('key_prefix', None)
-        BaseCache.__init__(self, default_timeout)
 
-        self._client = pylibmc.Client(servers, binary=True, **kwargs)
-        self.key_prefix = key_prefix
+        if not HAS_MEMCACHE:
+            raise RuntimeError('No memcache module found.')
+
+        client = get_mc_client(**kwargs)
+        skwargs = {'default_timeout': default_timeout, 'key_prefix': key_prefix}
+        super(MemcachedCache, self).__init__(servers=client, **skwargs)
+        self.TooBig = client.TooBig
+
+
+class SASLMemcachedCache(MemcachedCache):
+    def __init__(self, *args, **kwargs):
+        super(SASLMemcachedCache, self).__init__(*args, **kwargs)
 
 
 def null(config, *args, **kwargs):
@@ -52,22 +82,15 @@ def simple(config, *args, **kwargs):
 
 
 def memcached(config, *args, **kwargs):
-    kwargs.update(
-        {
-            'servers': config['CACHE_MEMCACHED_SERVERS'],
-            'key_prefix': config['CACHE_KEY_PREFIX']})
-
+    config_items = gen_config_items('servers', 'key_prefix', **config)
+    kwargs.update(dict(config_items))
     return MemcachedCache(*args, **kwargs)
 
 
 def saslmemcached(config, **kwargs):
-    kwargs.update(
-        {
-            'servers': config['CACHE_MEMCACHED_SERVERS'],
-            'username': config['CACHE_MEMCACHED_USERNAME'],
-            'password': config['CACHE_MEMCACHED_PASSWORD'],
-            'key_prefix': config['CACHE_KEY_PREFIX']})
-
+    keys = ('servers', 'username', 'password', 'key_prefix')
+    config_items = gen_config_items(*keys, **config)
+    kwargs.update(dict(config_items))
     return SASLMemcachedCache(**kwargs)
 
 
@@ -78,14 +101,11 @@ def filesystem(config, *args, **kwargs):
 
 
 def redis(config, *args, **kwargs):
-    kwargs.update(
-        {
-            'host': config.get('CACHE_REDIS_HOST', 'localhost'),
-            'port': config.get('CACHE_REDIS_PORT', 6379),
-            'password': config.get('CACHE_REDIS_PASSWORD'),
-            'key_prefix': config.get('CACHE_KEY_PREFIX'),
-            'db': config.get('CACHE_REDIS_DB')})
-
+    kwargs.setdefault('host', config.get('CACHE_REDIS_HOST', 'localhost'))
+    kwargs.setdefault('port', config.get('CACHE_REDIS_PORT', 6379))
+    kwargs.setdefault('password', config.get('CACHE_REDIS_PASSWORD'))
+    kwargs.setdefault('key_prefix', config.get('CACHE_KEY_PREFIX'))
+    kwargs.setdefault('db', config.get('CACHE_REDIS_DB'))
     redis_url = config.get('CACHE_REDIS_URL')
 
     if redis_url:
@@ -114,7 +134,6 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
         self.maxchunks = kwargs.get('maxchunks', 32)
         super(SpreadSASLMemcachedCache, self).__init__(*args, **kwargs)
         self.super = super(SpreadSASLMemcachedCache, self)
-        self.is_bytes = type(b'') != str
 
     def _genkeys(self, key):
         return ('{}.{}'.format(key, i) for i in range(self.maxchunks))
@@ -144,7 +163,7 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
         """
         try:
             value = self.super.set(key, value, timeout=timeout)
-        except TooBig:
+        except self.TooBig:
             self.super.set(key, self.MARKER, timeout=timeout)
             pickled = pickle.dumps(value, 2)
             values = dict(self._gen_kv(key, pickled))
@@ -160,23 +179,20 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
         if value == self.MARKER:
             keys = self._genkeys(key)
             result = self.super.get_many(*keys)
+            filtered = (v for v in result if v is not None)
 
-            if self.is_bytes:
-                serialized = b''.join(v for v in result if v is not None)
+            if IS_PY3:
+                serialized = b''.join(filtered)
             else:
-                serialized = ''.join(v for v in result if v is not None)
+                serialized = ''.join(filtered)
 
             value = pickle.loads(serialized) if serialized else None
 
         return value
 
 
-def spreadsaslmemcachedcache(config, *args, **kwargs):
-    kwargs.update(
-        {
-            'servers': config['CACHE_MEMCACHED_SERVERS'],
-            'username': config.get('CACHE_MEMCACHED_USERNAME'),
-            'password': config.get('CACHE_MEMCACHED_PASSWORD'),
-            'key_prefix': config.get('CACHE_KEY_PREFIX')})
-
+def spreadsaslmemcached(config, *args, **kwargs):
+    keys = ('servers', 'username', 'password', 'key_prefix')
+    config_items = gen_config_items(*keys, **config)
+    kwargs.update(dict(config_items))
     return SpreadSASLMemcachedCache(*args, **kwargs)

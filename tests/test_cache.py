@@ -2,42 +2,34 @@
 # vim: sw=4:ts=4:expandtab
 """
     tests.test_cache
-    ~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~
 
     Provides unit tests.
 """
 from __future__ import (
     absolute_import, division, print_function, unicode_literals)
 
-import sys
-import os
 import time
 import random
-
-from subprocess import call
 
 import nose.tools as nt
 
 from mezmorize import Cache, function_namespace
-from mezmorize.backends import (
-    from_url, pylibmc, SimpleCache, FileSystemCache, RedisCache,
-    MemcachedCache, SASLMemcachedCache, SpreadSASLMemcachedCache, TooBig)
+from mezmorize.utils import HAS_MEMCACHE, HAS_REDIS, get_cache_config
 
-if sys.version_info < (2, 7):
-    import unittest2 as unittest
-else:
-    import unittest
+from mezmorize.backends import (
+    SimpleCache, FileSystemCache, RedisCache, MemcachedCache,
+    SASLMemcachedCache, SpreadSASLMemcachedCache)
+
+import unittest
 
 BIGINT = 2 ** 21
 BIGGERINT = 2 ** 28
-pgrep = lambda process: call(['pgrep', process]) == 0
-has_redis = lambda: from_url and pgrep('redis')
-has_mc = lambda: pylibmc and pgrep('memcache')
 
 
 class CacheTestCase(unittest.TestCase):
     def _get_config(self):
-        return {'CACHE_TYPE': 'simple'}
+        return get_cache_config('simple')
 
     def test_dict_config(self):
         nt.assert_equal(self.cache.config['CACHE_TYPE'], 'simple')
@@ -376,30 +368,25 @@ class CacheTestCase(unittest.TestCase):
         self.func = func
         expected = (1, 2, 'foo', 'bar')
 
-        args, kwargs = self.cache._memoize_kwargs_to_args(
-            func, 1, 2, 'foo', 'bar')
-        nt.assert_equal(args, expected)
+        args = self.cache._gen_args(func, 1, 2, 'foo', 'bar')
+        nt.assert_equal(tuple(args), expected)
 
-        args, kwargs = self.cache._memoize_kwargs_to_args(
-            func, 2, 'foo', 'bar', a=1)
-        nt.assert_equal(args, expected)
+        args = self.cache._gen_args(func, 2, 'foo', 'bar', a=1)
+        nt.assert_equal(tuple(args), expected)
 
-        args, kwargs = self.cache._memoize_kwargs_to_args(
-            func, a=1, b=2, c='foo', d='bar')
-        nt.assert_equal(args, expected)
+        args = self.cache._gen_args(func, a=1, b=2, c='foo', d='bar')
+        nt.assert_equal(tuple(args), expected)
 
-        args, kwargs = self.cache._memoize_kwargs_to_args(
-            func, d='bar', b=2, a=1, c='foo')
-        nt.assert_equal(args, expected)
+        args = self.cache._gen_args(func, d='bar', b=2, a=1, c='foo')
+        nt.assert_equal(tuple(args), expected)
 
-        args, kwargs = self.cache._memoize_kwargs_to_args(
-            func, 1, 2, d='bar', c='foo')
-        nt.assert_equal(args, expected)
+        args = self.cache._gen_args(func, 1, 2, d='bar', c='foo')
+        nt.assert_equal(tuple(args), expected)
 
 
 class NSCacheTestCase(unittest.TestCase):
     def _get_config(self):
-        return {'CACHE_TYPE': 'simple'}
+        return get_cache_config('simple')
 
     def setUp(self):
         self.config = self._get_config()
@@ -421,18 +408,17 @@ class NSCacheTestCase(unittest.TestCase):
 
 class FileSystemCacheTestCase(CacheTestCase):
     def _get_config(self):
-        return {'CACHE_TYPE': 'filesystem', 'CACHE_DIR': '/tmp'}
+        return get_cache_config('filesystem', CACHE_DIR='/tmp')
 
     def test_dict_config(self):
         nt.assert_equal(self.cache.config['CACHE_TYPE'], 'filesystem')
         nt.assert_is_instance(self.cache.cache, FileSystemCache)
 
-if has_mc():
+
+if HAS_MEMCACHE:
     class MemcachedCacheTestCase(CacheTestCase):
         def _get_config(self):
-            return {
-                'CACHE_TYPE': 'memcached',
-                'CACHE_MEMCACHED_SERVERS': ['localhost:11211']}
+            return get_cache_config('memcached')
 
         def test_dict_config(self):
             nt.assert_equal(self.cache.config['CACHE_TYPE'], 'memcached')
@@ -441,19 +427,17 @@ if has_mc():
         def test_mc_large_value(self):
             cache = Cache(**self.config)
 
-            with nt.assert_raises(TooBig):
+            with nt.assert_raises(cache.cache.TooBig):
                 cache.set('big', 'a' * BIGINT)
 
             nt.assert_is_none(cache.get('big'))
+else:
+    print('MemcachedCacheTestCase requires Memcache')
 
-if has_mc():
+if HAS_MEMCACHE:
     class SASLMemcachedCacheTestCase(CacheTestCase):
         def _get_config(self):
-            return {
-                'CACHE_TYPE': 'saslmemcached',
-                'CACHE_MEMCACHED_SERVERS': ['localhost:11211'],
-                'CACHE_MEMCACHED_USERNAME': None,
-                'CACHE_MEMCACHED_PASSWORD': None}
+            return get_cache_config('saslmemcached')
 
         def test_dict_config(self):
             nt.assert_equal(self.cache.config['CACHE_TYPE'], 'saslmemcached')
@@ -462,21 +446,21 @@ if has_mc():
         def test_mc_large_value(self):
             cache = Cache(**self.config)
 
-            with nt.assert_raises(TooBig):
+            with nt.assert_raises(cache.cache.TooBig):
                 cache.set('big', 'a' * BIGINT)
 
             nt.assert_is_none(cache.get('big'))
+else:
+    print('SASLMemcachedCacheTestCase requires Memcache')
 
-if has_mc():
+if HAS_MEMCACHE:
     class SpreadSASLMemcachedCacheTestCase(CacheTestCase):
         def _get_config(self):
-            return {
-                'CACHE_TYPE': 'spreadsaslmemcachedcache',
-                'CACHE_MEMCACHED_SERVERS': ['localhost:11211']}
+            return get_cache_config('spreadsaslmemcached')
 
         def test_dict_config(self):
             CACHE_TYPE = self.cache.config['CACHE_TYPE']
-            nt.assert_equal(CACHE_TYPE, 'spreadsaslmemcachedcache')
+            nt.assert_equal(CACHE_TYPE, 'spreadsaslmemcached')
             nt.assert_is_instance(self.cache.cache, SpreadSASLMemcachedCache)
 
         def test_mc_large_value(self):
@@ -490,14 +474,12 @@ if has_mc():
             with nt.assert_raises(ValueError):
                 cache.set('big', 'a' * BIGGERINT)
 else:
-    print('requires Memcache')
+    print('SpreadSASLMemcachedCacheTestCase requires Memcache')
 
-if has_redis():
+if HAS_REDIS:
     class RedisCacheTestCase(CacheTestCase):
         def _get_config(self):
-            return {
-                'CACHE_TYPE': 'redis',
-                'CACHE_REDIS_URL': 'redis://localhost:6379'}
+            return get_cache_config('redis')
 
         def test_dict_config(self):
             nt.assert_equal(self.cache.config['CACHE_TYPE'], 'redis')
@@ -509,12 +491,12 @@ if has_redis():
             nt.assert_equal(rconn.db, 0)
 
         def test_redis_url_custom_db(self):
-            self.config.update({'CACHE_REDIS_URL': 'redis://localhost:6379/2'})
+            self.config = get_cache_config('redis', db=2)
             cache = Cache(**self.config)
             rconn = cache.cache._client.connection_pool.get_connection('foo')
             nt.assert_equal(rconn.db, 2)
 else:
-    print('requires Redis')
+    print('RedisCacheTestCase requires Redis')
 
 if __name__ == '__main__':
     unittest.main()
