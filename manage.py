@@ -7,8 +7,7 @@
 
     A script to manage development tasks
 """
-from __future__ import (
-    absolute_import, division, print_function, unicode_literals)
+from __future__ import absolute_import, division, print_function
 
 from os import path as p
 from subprocess import call, check_call, CalledProcessError
@@ -46,10 +45,14 @@ def check():
 
 @manager.arg('where', 'w', help='Modules to check')
 @manager.arg('strict', 's', help='Check with pylint')
+@manager.arg(
+    'parallel', 'p', help='Run linter in parallel in multiple processes',
+    type=bool, default=False)
 @manager.command
-def lint(where=None, strict=False):
+def lint(where=None, strict=False, parallel=False):
     """Check style with linters"""
-    args = 'pylint --rcfile=tests/standard.rc -rn -fparseable meza'
+    args = 'pylint --rcfile=tests/.pylintrc -rn mezmorize'
+    args += ' -j 0' if parallel else ''
 
     try:
         check_call(['flake8', where] if where else 'flake8')

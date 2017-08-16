@@ -7,6 +7,10 @@
 
     Provides mezmorize storage mechanisms
 """
+# pylint: disable=range-builtin-not-iterating
+
+from __future__ import absolute_import, division, print_function
+
 import pickle
 
 from itertools import chain

@@ -38,6 +38,7 @@ setup_require = [r for r in dev_requirements if 'pkutils' in r]
 # Optional requirements
 redis_require = {r for r in opt_requirements if r.startswith('redis')}
 mc_require = redis_require.difference(opt_requirements)
+pure_require = {r for r in opt_requirements if not r.startswith('pylibmc')}
 
 setup(
     name=project,
@@ -61,6 +62,7 @@ setup(
     extras_require={
         'redis': redis_require,
         'memcache': mc_require,
+        'pure': pure_require,
         'develop': dev_requirements,
     },
     setup_requires=setup_require,

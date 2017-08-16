@@ -7,6 +7,7 @@
 
     Adds function memoization support
 """
+# pylint: disable=W1636,W1637,W1638,W1639
 
 from __future__ import absolute_import, division, print_function
 
@@ -24,7 +25,7 @@ from werkzeug.contrib.cache import _test_memcached_key
 from . import backends
 from .utils import DEF_THRESHOLD, DEF_DEFAULT_TIMEOUT
 
-__version__ = '0.21.0'
+__version__ = '0.21.1'
 __title__ = 'mezmorize'
 __package_name__ = 'mezmorize'
 __author__ = 'Reuben Cummings'

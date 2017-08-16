@@ -6,8 +6,7 @@
 
     Provides unit tests.
 """
-from __future__ import (
-    absolute_import, division, print_function, unicode_literals)
+from __future__ import absolute_import, division, print_function
 
 import time
 import random
@@ -95,8 +94,18 @@ class TestCache(object):
         self.cache.add('hi', 'foobar')
         nt.assert_equal(self.cache.get('hi'), 'hello')
 
+    def test_add_unicode(self):
+        self.cache.add('ȟį', 'ƕɛĺłö')
+        nt.assert_equal(self.cache.get('ȟį'), 'ƕɛĺłö')
+
+        self.cache.add('ȟį', 'fööƀåř')
+        nt.assert_equal(self.cache.get('ȟį'), 'ƕɛĺłö')
+
     def test_delete(self):
         check_set_delete(self.cache, 'hi', 'hello')
+
+    def test_delete_unicode(self):
+        check_set_delete(self.cache, 'ȟį', 'ƕɛĺłö')
 
     def test_memoize(self):
         @self.cache.memoize(5)
