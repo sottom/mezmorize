@@ -23,7 +23,7 @@ from functools import partial, wraps
 from werkzeug.contrib.cache import _test_memcached_key
 
 from . import backends
-from .utils import DEF_THRESHOLD, DEF_DEFAULT_TIMEOUT
+from .utils import DEF_THRESHOLD, DEF_DEFAULT_TIMEOUT, IS_PY3
 
 __version__ = '0.21.1'
 __title__ = 'mezmorize'
@@ -40,54 +40,52 @@ delchars = filter(is_invalid, map(chr, range(256)))
 
 ENCODING = 'utf-8'
 
-try:
+if IS_PY3:
     trans_tbl = ''.maketrans({k: None for k in delchars})
-    null_control = (trans_tbl,)
-except AttributeError:
-    null_control = (None, ''.join(delchars))
+    NULL_CONTROL = (trans_tbl,)
+else:
+    NULL_CONTROL = (None, ''.join(delchars))
 
 try:
     from inspect import getfullargspec
 except ImportError:
     from inspect import getargspec as getfullargspec
 
+get_namespace = lambda *names: '.'.join(names).translate(*NULL_CONTROL)
+
 
 def function_namespace(f, *args):
     """
-    Attempts to returns unique namespace for function
+    Attempts to returns unique a namespace for a function
     """
     m_args = getfullargspec(f).args
-    instance_token = None
-    instance_self = getattr(f, '__self__', None)
+    m_arg = m_args[0] if args and m_args else ''
+    arg = args[0] if args else None
+    self_instance = getattr(f, '__self__', None)
+    not_class = self_instance and not inspect.isclass(self_instance)
+    is_self = m_arg == 'self'
 
-    if instance_self and not inspect.isclass(instance_self):
-        instance_token = repr(f.__self__)
-    elif args and m_args and m_args[0] == 'self':
-        instance_token = repr(args[0])
+    try:
+        name = f.__qualname__
+    except AttributeError:
+        klass = self_instance.__class__ if not_class else self_instance
+
+        if not klass:
+            klass = getattr(f, 'im_class', None)
+
+        if not klass and is_self:
+            klass = arg.__class__
+        elif not klass and m_arg == 'cls':
+            klass = arg
+
+        name = '.'.join(n.__name__ for n in (klass, f) if n)
 
     module = f.__module__
+    ns = get_namespace(module, name)
 
-    if hasattr(f, '__qualname__'):
-        name = f.__qualname__
-    else:
-        klass = getattr(f, '__self__', None)
-
-        if klass and not inspect.isclass(klass):
-            klass = klass.__class__
-
-        klass = klass or getattr(f, 'im_class', None)
-
-        if not klass and args and m_args and m_args[0] == 'self':
-            klass = args[0].__class__
-        elif not klass and args and m_args and m_args[0] == 'cls':
-            klass = args[0]
-
-        name = klass.__name__ + '.' + f.__name__ if klass else f.__name__
-
-    ns = '.'.join((module, name)).translate(*null_control)
-
-    if instance_token:
-        ins = '.'.join((module, name, instance_token)).translate(*null_control)
+    if not_class or is_self:
+        instance = f.__self__ if not_class else arg
+        ins = get_namespace(module, name, repr(instance))
     else:
         ins = None
 
