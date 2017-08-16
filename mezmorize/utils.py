@@ -7,6 +7,8 @@
 
     Provides mezmorize utility functions
 """
+from __future__ import absolute_import, division, print_function
+
 import sys
 
 from os import getenv

@@ -7,6 +7,7 @@
 
     Adds function memoization support
 """
+# pylint: disable=W1636,W1637,W1638,W1639
 
 from __future__ import absolute_import, division, print_function
 
