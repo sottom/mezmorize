@@ -256,14 +256,13 @@ class Cache(object):
 
         return fname, ''.join(version_data_list)
 
-    def _memoize_make_cache_key(self, make_name=None, timeout=None):
+    def _memoize_make_cache_key(self, make_name=None, decorated=None):
         """
         Function used to create the cache_key for memoized functions.
         """
         def make_cache_key(f, *args, **kwargs):
-            _timeout = getattr(timeout, 'cache_timeout', timeout)
-            fname, version_data = self._memoize_version(
-                f, *args, timeout=_timeout)
+            mkwargs = {'timeout': decorated.cache_timeout} if decorated else {}
+            fname, version_data = self._memoize_version(f, *args, **mkwargs)
 
             # this should have to be after version_data, so that it
             # does not break the delete_memoized functionality.
