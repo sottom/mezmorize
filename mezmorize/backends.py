@@ -100,28 +100,28 @@ def null(config, *args, **kwargs):
 def simple(config, *args, **kwargs):
     defaults = dict(gen_defaults('threshold', 'timeout', **config))
     defaults.update(kwargs)
-    return SimpleCache(*args, **kwargs)
+    return SimpleCache(*args, **defaults)
 
 
 def memcached(config, *args, **kwargs):
     keys = ('timeout', 'servers', 'key_prefix')
     defaults = dict(gen_defaults(*keys, **config))
     defaults.update(kwargs)
-    return MemcachedCache(*args, **kwargs)
+    return MemcachedCache(*args, **defaults)
 
 
 def saslmemcached(config, **kwargs):
     keys = ('timeout', 'servers', 'username', 'password', 'key_prefix')
     defaults = dict(gen_defaults(*keys, **config))
     defaults.update(kwargs)
-    return SASLMemcachedCache(**kwargs)
+    return SASLMemcachedCache(**defaults)
 
 
 def filesystem(config, *args, **kwargs):
     args = chain([config['CACHE_DIR']], args)
     defaults = dict(gen_defaults('threshold', 'timeout', **config))
     defaults.update(kwargs)
-    return FileSystemCache(*args, **kwargs)
+    return FileSystemCache(*args, **defaults)
 
 
 def redis(config, *args, **kwargs):
@@ -222,4 +222,4 @@ def spreadsaslmemcached(config, *args, **kwargs):
     keys = ('timeout', 'servers', 'username', 'password', 'key_prefix')
     defaults = dict(gen_defaults(*keys, **config))
     defaults.update(kwargs)
-    return SpreadSASLMemcachedCache(*args, **kwargs)
+    return SpreadSASLMemcachedCache(*args, **defaults)
