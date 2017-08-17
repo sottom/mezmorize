@@ -38,6 +38,7 @@ DEF_DEFAULT_TIMEOUT = 300
 DEF_MC_HOST = DEF_REDIS_HOST = 'localhost'
 DEF_MC_PORT = 11211
 DEF_REDIS_PORT = 6379
+ENCODING = 'utf-8'
 
 ALL_MEMCACHES = (
     ('pylibmc', pylibmc), ('bmemcached', bmemcached),
@@ -190,3 +191,12 @@ def get_bmemcached_client(servers, timeout=None, **kwargs):
     client = Client(servers, **kwargs)
     client.TooBig = None
     return client
+
+
+def decode(word):
+    try:
+        decoded = word.decode(ENCODING)
+    except AttributeError:
+        decoded = word
+
+    return decoded

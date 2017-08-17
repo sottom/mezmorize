@@ -24,7 +24,7 @@ from six import PY3
 from werkzeug.contrib.cache import _test_memcached_key
 
 from . import backends
-from .utils import DEF_THRESHOLD, DEF_DEFAULT_TIMEOUT
+from .utils import DEF_THRESHOLD, DEF_DEFAULT_TIMEOUT, ENCODING, decode
 
 __version__ = '0.24.0'
 __title__ = 'mezmorize'
@@ -38,8 +38,6 @@ __copyright__ = 'Copyright 2015 Reuben Cummings'
 # Used to remove control characters and whitespace from cache keys.
 is_invalid = lambda c: not (c in {'_', '.'} or c.isalnum())
 delchars = filter(is_invalid, map(chr, range(256)))
-
-ENCODING = 'utf-8'
 
 if PY3:
     trans_tbl = ''.maketrans({k: None for k in delchars})
@@ -255,7 +253,7 @@ class Cache(object):
             zipped = zip(fetch_keys, version_data_list)
             self.cache.set_many(dict(zipped), **kwargs)
 
-        return fname, ''.join(version_data_list)
+        return fname, ''.join(map(decode, version_data_list))
 
     def _memoize_make_cache_key(self, make_name=None, decorated=None):
         """
