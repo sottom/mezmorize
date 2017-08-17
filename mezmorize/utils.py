@@ -7,7 +7,8 @@
 
     Provides mezmorize utility functions
 """
-from __future__ import absolute_import, division, print_function
+from __future__ import (
+    absolute_import, division, print_function, unicode_literals)
 
 from os import getenv
 from subprocess import call

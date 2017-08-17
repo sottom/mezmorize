@@ -9,7 +9,8 @@
 """
 # pylint: disable=W1636,W1637,W1638,W1639
 
-from __future__ import absolute_import, division, print_function
+from __future__ import (
+    absolute_import, division, print_function, unicode_literals)
 
 import base64
 import hashlib
@@ -40,17 +41,28 @@ is_invalid = lambda c: not (c in {'_', '.'} or c.isalnum())
 delchars = filter(is_invalid, map(chr, range(256)))
 
 if PY3:
+    from inspect import getfullargspec
+
     trans_tbl = ''.maketrans({k: None for k in delchars})
     NULL_CONTROL = (trans_tbl,)
 else:
-    NULL_CONTROL = (None, ''.join(delchars))
-
-try:
-    from inspect import getfullargspec
-except ImportError:
     from inspect import getargspec as getfullargspec
 
-get_namespace = lambda *names: '.'.join(names).translate(*NULL_CONTROL)
+    NULL_CONTROL = (None, b''.join(delchars))
+
+FIRST_NC = NULL_CONTROL[0]
+
+
+def get_namespace(*names):
+    text = '.'.join(map(decode, names))
+
+    if FIRST_NC:
+        namespace = text.translate(FIRST_NC)
+    else:
+        encoded = text.encode(ENCODING)
+        namespace = encoded.translate(*NULL_CONTROL).decode(ENCODING)
+
+    return namespace
 
 
 def function_namespace(f, *args):
