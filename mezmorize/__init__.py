@@ -26,7 +26,7 @@ from werkzeug.contrib.cache import _test_memcached_key
 from . import backends
 from .utils import DEF_THRESHOLD, DEF_DEFAULT_TIMEOUT
 
-__version__ = '0.23.0'
+__version__ = '0.24.0'
 __title__ = 'mezmorize'
 __package_name__ = 'mezmorize'
 __author__ = 'Reuben Cummings'
@@ -138,8 +138,9 @@ class Cache(object):
         kwargs = self.config['CACHE_OPTIONS']
         kwargs.setdefault('default_timeout', default_timeout)
 
-        if 'preferred_memcache' in kwargs and not self.is_memcached:
-            kwargs.pop('preferred_memcache')
+        if not self.is_memcached:
+            kwargs.pop('preferred_memcache', None)
+            kwargs.pop('connect_timeout', None)
 
         self.cache = cache_obj(self.config, *args, **kwargs)
 
@@ -256,14 +257,13 @@ class Cache(object):
 
         return fname, ''.join(version_data_list)
 
-    def _memoize_make_cache_key(self, make_name=None, timeout=None):
+    def _memoize_make_cache_key(self, make_name=None, decorated=None):
         """
         Function used to create the cache_key for memoized functions.
         """
         def make_cache_key(f, *args, **kwargs):
-            _timeout = getattr(timeout, 'cache_timeout', timeout)
-            fname, version_data = self._memoize_version(
-                f, *args, timeout=_timeout)
+            mkwargs = {'timeout': decorated.cache_timeout} if decorated else {}
+            fname, version_data = self._memoize_version(f, *args, **mkwargs)
 
             # this should have to be after version_data, so that it
             # does not break the delete_memoized functionality.
@@ -328,7 +328,6 @@ class Cache(object):
             >>> import random
             >>>
             >>> cache = Cache()
-            >>> random.seed(94967295)
             >>>
             >>> @cache.memoize(timeout=50)
             ... def big_foo(a, b):
@@ -336,12 +335,11 @@ class Cache(object):
 
         .. code-block:: python
 
-            >>> big_foo(5, 2)
-            7.958704852413581
-            >>> big_foo(5, 3)
-            8.549092433826667
-            >>> big_foo(5, 2)
-            7.958704852413581
+            >>> rand_res = big_foo(5, 2)
+            >>> rand_res == big_foo(5, 3)
+            False
+            >>> rand_res == big_foo(5, 2)
+            True
 
         .. versionadded:: 0.4
             The returned decorated function now has three function attributes
@@ -422,7 +420,6 @@ class Cache(object):
             >>> import random
             >>>
             >>> cache = Cache()
-            >>> random.seed(94967295)
             >>>
             >>> @cache.memoize(50)
             ... def random_func():
@@ -434,24 +431,23 @@ class Cache(object):
 
         .. code-block:: python
 
-            >>> random_func()
-            0.9587048524135806
-            >>> random_func()
-            0.9587048524135806
+            >>> rand_res = random_func()
+            >>> rand_res == random_func()
+            True
             >>> cache.delete_memoized(random_func)
-            >>> random_func()
-            0.5490924338266671
-            >>> param_func(1, 2)
-            3.9842867703092044
-            >>> param_func(1, 2)
-            3.9842867703092044
-            >>> param_func(2, 2)
-            4.206564934699584
+            >>> rand_res == random_func()
+            False
+            >>> param_res = param_func(1, 2)
+            >>> param_res == param_func(1, 2)
+            True
+            >>> param_res2 = param_func(2, 2)
+            >>> param_res == param_res2
+            False
             >>> cache.delete_memoized(param_func, 1, 2)
-            >>> param_func(1, 2)
-            3.254770292165599
-            >>> param_func(2, 2)
-            4.206564934699584
+            >>> param_res == param_func(1, 2)
+            False
+            >>> param_res2 == param_func(2, 2)
+            True
 
         Delete memoized is also smart about instance methods vs class methods.
 
@@ -464,8 +460,6 @@ class Cache(object):
 
         Example::
 
-            >>> random.seed(94967295)
-            >>>
             >>> class Adder(object):
             ...    @cache.memoize()
             ...    def add(self, b):
@@ -475,20 +469,19 @@ class Cache(object):
 
             >>> adder1 = Adder()
             >>> adder2 = Adder()
-            >>> adder1.add(3)
-            3.9587048524135806
-            >>> adder2.add(3)
-            3.549092433826667
+            >>> adder1_res = adder1.add(3)
+            >>> adder2_res = adder2.add(3)
             >>> cache.delete_memoized(adder1.add)
-            >>> adder1.add(3)
-            3.9842867703092044
-            >>> adder2.add(3)
-            3.549092433826667
+            >>> adder1_res == adder1.add(3)
+            False
+            >>> adder1_res = adder1.add(3)
+            >>> adder2_res == adder2.add(3)
+            True
             >>> cache.delete_memoized(Adder.add)
-            >>> adder1.add(3)
-            3.2065649346995837
-            >>> adder2.add(3)
-            3.254770292165599
+            >>> adder1_res == adder1.add(3)
+            False
+            >>> adder2_res == adder2.add(3)
+            False
 
         :param fname: Name of the memoized function, or a reference to
             the function.

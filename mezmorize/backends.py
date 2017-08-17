@@ -27,7 +27,7 @@ from werkzeug.contrib.cache import (
 from .utils import (
     DEF_MC_SERVERS, HAS_MEMCACHE, AVAIL_MEMCACHES, get_pylibmc_client,
     get_pymemcache_client, get_bmemcached_client, DEF_REDIS_HOST,
-    DEF_REDIS_PORT, DEF_DEFAULT_TIMEOUT)
+    DEF_REDIS_PORT)
 
 try:
     from redis import from_url
@@ -37,10 +37,10 @@ except ImportError:
 CONFIG_LOOKUP = {
     'servers': 'CACHE_MEMCACHED_SERVERS',
     'threshold': 'CACHE_THRESHOLD',
-    'timeout': 'CACHE_TIMEOUT',
     'username': 'CACHE_MEMCACHED_USERNAME',
     'password': 'CACHE_MEMCACHED_PASSWORD',
-    'key_prefix': 'CACHE_KEY_PREFIX'}
+    'key_prefix': 'CACHE_KEY_PREFIX',
+    'timeout': 'connect_timeout'}
 
 
 def gen_defaults(*keys, **config):
@@ -68,9 +68,6 @@ def get_mc_client(module_name, binary=True, **kwargs):
 
 class MemcachedCache(_MemcachedCache):
     def __init__(self, *args, **kwargs):
-        default_timeout = kwargs.pop('default_timeout', DEF_DEFAULT_TIMEOUT)
-        key_prefix = kwargs.pop('key_prefix', None)
-
         if not HAS_MEMCACHE:
             raise RuntimeError('No memcache module found.')
 
@@ -80,14 +77,18 @@ class MemcachedCache(_MemcachedCache):
         if not avail_memcaches:
             raise RuntimeError('No compatible memcache module found.')
 
-        preferred_mc = kwargs.pop('preferred_memcache', 'pylibmc')
+        preferred_mc = kwargs.get('preferred_memcache', 'pylibmc')
 
         if len(avail_memcaches) == 1 or preferred_mc not in avail_memcaches:
             filterer = partial(contains, avail_memcaches)
             preferred_mc = next(filter(filterer, AVAIL_MEMCACHES))
 
-        client = get_mc_client(preferred_mc, **kwargs)
-        skwargs = {'default_timeout': default_timeout, 'key_prefix': key_prefix}
+        whitelist = {'default_timeout', 'key_prefix'}
+        blacklist = whitelist.union(['preferred_memcache'])
+        mkwargs = {k: v for k, v in kwargs.items() if k not in blacklist}
+        skwargs = {k: v for k, v in kwargs.items() if k in whitelist}
+
+        client = get_mc_client(preferred_mc, **mkwargs)
         super(MemcachedCache, self).__init__(servers=client, **skwargs)
         self.TooBig = client.TooBig
         self.client_name = preferred_mc
@@ -104,7 +105,7 @@ def null(config, *args, **kwargs):
 
 
 def simple(config, *args, **kwargs):
-    defaults = dict(gen_defaults('threshold', 'timeout', **config))
+    defaults = dict(gen_defaults('threshold', **config))
     defaults.update(kwargs)
     return SimpleCache(*args, **defaults)
 
@@ -125,7 +126,7 @@ def saslmemcached(config, **kwargs):
 
 def filesystem(config, *args, **kwargs):
     args = chain([config['CACHE_DIR']], args)
-    defaults = dict(gen_defaults('threshold', 'timeout', **config))
+    defaults = dict(gen_defaults('threshold', **config))
     defaults.update(kwargs)
     return FileSystemCache(*args, **defaults)
 
