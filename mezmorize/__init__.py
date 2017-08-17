@@ -135,6 +135,10 @@ class Cache(object):
         args = self.config['CACHE_ARGS']
         kwargs = self.config['CACHE_OPTIONS']
         kwargs.setdefault('default_timeout', default_timeout)
+
+        if 'preferred_memcache' in kwargs and not self.is_memcached:
+            kwargs.pop('preferred_memcache')
+
         self.cache = cache_obj(self.config, *args, **kwargs)
 
     def _gen_mapping(self, *args):
