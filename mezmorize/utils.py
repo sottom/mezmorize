@@ -9,8 +9,6 @@
 """
 from __future__ import absolute_import, division, print_function
 
-import sys
-
 from os import getenv
 from subprocess import call
 from copy import copy
@@ -35,17 +33,15 @@ try:
 except ImportError:
     redis = None
 
-IS_PY3 = sys.version_info.major == 3
-
-DEF_THRESHOLD = 2048
-DEF_DEFAULT_TIMEOUT = 3600
+DEF_THRESHOLD = 500
+DEF_DEFAULT_TIMEOUT = 300
 DEF_MC_HOST = DEF_REDIS_HOST = 'localhost'
 DEF_MC_PORT = 11211
 DEF_REDIS_PORT = 6379
 
 ALL_MEMCACHES = (
-    ('pylibmc', pylibmc), ('pymemcache', pymemcache),
-    ('bmemcached', bmemcached))
+    ('pylibmc', pylibmc), ('bmemcached', bmemcached),
+    ('pymemcache', pymemcache))
 
 DEF_MC_SERVERS = '{}:{}'.format(DEF_MC_HOST, DEF_MC_PORT)
 MC_SERVERS = getenv('MEMCACHIER_SERVERS') or getenv('MEMCACHEDCLOUD_SERVERS')
@@ -98,7 +94,7 @@ def pgrep(process):
 
 
 HAS_MEMCACHE = (pylibmc or pymemcache or bmemcached) and pgrep('memcache')
-AVAIL_MEMCACHES = {k for k, v in ALL_MEMCACHES if HAS_MEMCACHE and v}
+AVAIL_MEMCACHES = [k for k, v in ALL_MEMCACHES if HAS_MEMCACHE and v]
 HAS_REDIS = redis and pgrep('redis')
 
 

@@ -7,20 +7,25 @@
 
     Provides mezmorize storage mechanisms
 """
-# pylint: disable=range-builtin-not-iterating
+# pylint: disable=range-builtin-not-iterating,filter-builtin-not-iterating
 
 from __future__ import absolute_import, division, print_function
 
 import pickle
 
 from itertools import chain
+from functools import partial
+from operator import contains
+
+from six import PY3
+from six.moves import filter
 
 from werkzeug.contrib.cache import (
     NullCache, SimpleCache, MemcachedCache as _MemcachedCache, FileSystemCache,
     RedisCache)
 
 from .utils import (
-    DEF_MC_SERVERS, IS_PY3, HAS_MEMCACHE, AVAIL_MEMCACHES, get_pylibmc_client,
+    DEF_MC_SERVERS, HAS_MEMCACHE, AVAIL_MEMCACHES, get_pylibmc_client,
     get_pymemcache_client, get_bmemcached_client, DEF_REDIS_HOST,
     DEF_REDIS_PORT, DEF_DEFAULT_TIMEOUT)
 
@@ -70,7 +75,7 @@ class MemcachedCache(_MemcachedCache):
             raise RuntimeError('No memcache module found.')
 
         compat_memcaches = kwargs.pop('compat_memcaches', AVAIL_MEMCACHES)
-        avail_memcaches = AVAIL_MEMCACHES.intersection(compat_memcaches)
+        avail_memcaches = set(AVAIL_MEMCACHES).intersection(compat_memcaches)
 
         if not avail_memcaches:
             raise RuntimeError('No compatible memcache module found.')
@@ -78,7 +83,8 @@ class MemcachedCache(_MemcachedCache):
         preferred_mc = kwargs.pop('preferred_memcache', 'pylibmc')
 
         if len(avail_memcaches) == 1 or preferred_mc not in avail_memcaches:
-            preferred_mc = avail_memcaches.pop()
+            filterer = partial(contains, avail_memcaches)
+            preferred_mc = next(filter(filterer, AVAIL_MEMCACHES))
 
         client = get_mc_client(preferred_mc, **kwargs)
         skwargs = {'default_timeout': default_timeout, 'key_prefix': key_prefix}
@@ -100,28 +106,28 @@ def null(config, *args, **kwargs):
 def simple(config, *args, **kwargs):
     defaults = dict(gen_defaults('threshold', 'timeout', **config))
     defaults.update(kwargs)
-    return SimpleCache(*args, **kwargs)
+    return SimpleCache(*args, **defaults)
 
 
 def memcached(config, *args, **kwargs):
     keys = ('timeout', 'servers', 'key_prefix')
     defaults = dict(gen_defaults(*keys, **config))
     defaults.update(kwargs)
-    return MemcachedCache(*args, **kwargs)
+    return MemcachedCache(*args, **defaults)
 
 
 def saslmemcached(config, **kwargs):
     keys = ('timeout', 'servers', 'username', 'password', 'key_prefix')
     defaults = dict(gen_defaults(*keys, **config))
     defaults.update(kwargs)
-    return SASLMemcachedCache(**kwargs)
+    return SASLMemcachedCache(**defaults)
 
 
 def filesystem(config, *args, **kwargs):
     args = chain([config['CACHE_DIR']], args)
     defaults = dict(gen_defaults('threshold', 'timeout', **config))
     defaults.update(kwargs)
-    return FileSystemCache(*args, **kwargs)
+    return FileSystemCache(*args, **defaults)
 
 
 def redis(config, *args, **kwargs):
@@ -207,12 +213,7 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
             keys = self._genkeys(key)
             result = self.super.get_many(*keys)
             filtered = (v for v in result if v is not None)
-
-            if IS_PY3:
-                serialized = b''.join(filtered)
-            else:
-                serialized = ''.join(filtered)
-
+            serialized = b''.join(filtered) if PY3 else ''.join(filtered)
             value = pickle.loads(serialized) if serialized else None
 
         return value
@@ -222,4 +223,4 @@ def spreadsaslmemcached(config, *args, **kwargs):
     keys = ('timeout', 'servers', 'username', 'password', 'key_prefix')
     defaults = dict(gen_defaults(*keys, **config))
     defaults.update(kwargs)
-    return SpreadSASLMemcachedCache(*args, **kwargs)
+    return SpreadSASLMemcachedCache(*args, **defaults)
