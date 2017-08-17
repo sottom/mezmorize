@@ -98,13 +98,15 @@ AVAIL_MEMCACHES = [k for k, v in ALL_MEMCACHES if HAS_MEMCACHE and v]
 HAS_REDIS = redis and pgrep('redis')
 
 
-def get_cache_type(cache=None, spread=False):
+def get_cache_type(cache=None, spread=False, **kwargs):
+    cache_dir = kwargs.get('cache_dir', getenv('CACHE_DIR'))
+
     if HAS_REDIS and HAS_MEMCACHE and not cache:
         cache = 'memcached'
     elif not cache:
         cache = 'redis' if HAS_REDIS else 'memcached'
 
-    if HAS_MEMCACHE and cache == 'memcached':
+    if HAS_MEMCACHE and 'memcached' in cache:
         if MC_USERNAME and spread:
             cache_type = 'spreadsaslmemcached'
         elif MC_USERNAME:
@@ -113,10 +115,12 @@ def get_cache_type(cache=None, spread=False):
             cache_type = 'memcached'
     elif HAS_REDIS and cache == 'redis':
         cache_type = 'redis'
-    elif getenv('CACHE_DIR'):
+    elif cache_dir and cache not in {'simple', 'null'}:
         cache_type = 'filesystem'
-    else:
+    elif cache != 'null':
         cache_type = 'simple'
+    else:
+        cache_type = 'null'
 
     return cache_type
 

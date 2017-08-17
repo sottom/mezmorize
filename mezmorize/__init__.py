@@ -26,7 +26,7 @@ from werkzeug.contrib.cache import _test_memcached_key
 from . import backends
 from .utils import DEF_THRESHOLD, DEF_DEFAULT_TIMEOUT
 
-__version__ = '0.22.0'
+__version__ = '0.23.0'
 __title__ = 'mezmorize'
 __package_name__ = 'mezmorize'
 __author__ = 'Reuben Cummings'
@@ -121,7 +121,6 @@ class Cache(object):
     def _set_cache(self):
         module_string = self.config['CACHE_TYPE']
         default_timeout = self.config['CACHE_DEFAULT_TIMEOUT']
-        self.is_memcached = 'memcache' in module_string
 
         if '.' not in module_string:
             try:
@@ -132,9 +131,16 @@ class Cache(object):
         else:
             cache_obj = import_module(module_string)
 
+        self.cache_type = cache_obj.__name__
+        self.is_memcached = 'memcache' in self.cache_type
+
         args = self.config['CACHE_ARGS']
         kwargs = self.config['CACHE_OPTIONS']
         kwargs.setdefault('default_timeout', default_timeout)
+
+        if 'preferred_memcache' in kwargs and not self.is_memcached:
+            kwargs.pop('preferred_memcache')
+
         self.cache = cache_obj(self.config, *args, **kwargs)
 
     def _gen_mapping(self, *args):
