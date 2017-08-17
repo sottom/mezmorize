@@ -104,7 +104,7 @@ def null(config, *args, **kwargs):
 
 
 def simple(config, *args, **kwargs):
-    defaults = dict(gen_defaults('threshold', 'timeout', **config))
+    defaults = dict(gen_defaults('threshold', **config))
     defaults.update(kwargs)
     return SimpleCache(*args, **defaults)
 
@@ -125,7 +125,7 @@ def saslmemcached(config, **kwargs):
 
 def filesystem(config, *args, **kwargs):
     args = chain([config['CACHE_DIR']], args)
-    defaults = dict(gen_defaults('threshold', 'timeout', **config))
+    defaults = dict(gen_defaults('threshold', **config))
     defaults.update(kwargs)
     return FileSystemCache(*args, **defaults)
 
