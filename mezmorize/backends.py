@@ -17,6 +17,7 @@ from itertools import chain
 from functools import partial
 from operator import contains
 
+from six import PY3
 from six.moves import filter
 
 from werkzeug.contrib.cache import (
@@ -24,7 +25,7 @@ from werkzeug.contrib.cache import (
     RedisCache)
 
 from .utils import (
-    DEF_MC_SERVERS, IS_PY3, HAS_MEMCACHE, AVAIL_MEMCACHES, get_pylibmc_client,
+    DEF_MC_SERVERS, HAS_MEMCACHE, AVAIL_MEMCACHES, get_pylibmc_client,
     get_pymemcache_client, get_bmemcached_client, DEF_REDIS_HOST,
     DEF_REDIS_PORT, DEF_DEFAULT_TIMEOUT)
 
@@ -212,12 +213,7 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
             keys = self._genkeys(key)
             result = self.super.get_many(*keys)
             filtered = (v for v in result if v is not None)
-
-            if IS_PY3:
-                serialized = b''.join(filtered)
-            else:
-                serialized = ''.join(filtered)
-
+            serialized = b''.join(filtered) if PY3 else ''.join(filtered)
             value = pickle.loads(serialized) if serialized else None
 
         return value

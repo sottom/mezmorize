@@ -9,8 +9,6 @@
 """
 from __future__ import absolute_import, division, print_function
 
-import sys
-
 from os import getenv
 from subprocess import call
 from copy import copy
@@ -34,8 +32,6 @@ try:
     import redis
 except ImportError:
     redis = None
-
-IS_PY3 = sys.version_info.major == 3
 
 DEF_THRESHOLD = 500
 DEF_DEFAULT_TIMEOUT = 300
