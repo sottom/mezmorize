@@ -121,7 +121,6 @@ class Cache(object):
     def _set_cache(self):
         module_string = self.config['CACHE_TYPE']
         default_timeout = self.config['CACHE_DEFAULT_TIMEOUT']
-        self.is_memcached = 'memcache' in module_string
 
         if '.' not in module_string:
             try:
@@ -131,6 +130,9 @@ class Cache(object):
                 raise ImportError(msg.format(module_string))
         else:
             cache_obj = import_module(module_string)
+
+        self.cache_type = cache_obj.__name__
+        self.is_memcached = 'memcache' in self.cache_type
 
         args = self.config['CACHE_ARGS']
         kwargs = self.config['CACHE_OPTIONS']
