@@ -9,7 +9,8 @@
 """
 # pylint: disable=W1636,W1637,W1638,W1639
 
-from __future__ import absolute_import, division, print_function
+from __future__ import (
+    absolute_import, division, print_function, unicode_literals)
 
 import base64
 import hashlib
@@ -24,9 +25,9 @@ from six import PY3
 from werkzeug.contrib.cache import _test_memcached_key
 
 from . import backends
-from .utils import DEF_THRESHOLD, DEF_DEFAULT_TIMEOUT
+from .utils import DEF_THRESHOLD, DEF_DEFAULT_TIMEOUT, ENCODING, decode
 
-__version__ = '0.24.0'
+__version__ = '0.24.1'
 __title__ = 'mezmorize'
 __package_name__ = 'mezmorize'
 __author__ = 'Reuben Cummings'
@@ -39,20 +40,29 @@ __copyright__ = 'Copyright 2015 Reuben Cummings'
 is_invalid = lambda c: not (c in {'_', '.'} or c.isalnum())
 delchars = filter(is_invalid, map(chr, range(256)))
 
-ENCODING = 'utf-8'
-
 if PY3:
+    from inspect import getfullargspec
+
     trans_tbl = ''.maketrans({k: None for k in delchars})
     NULL_CONTROL = (trans_tbl,)
 else:
-    NULL_CONTROL = (None, ''.join(delchars))
-
-try:
-    from inspect import getfullargspec
-except ImportError:
     from inspect import getargspec as getfullargspec
 
-get_namespace = lambda *names: '.'.join(names).translate(*NULL_CONTROL)
+    NULL_CONTROL = (None, b''.join(delchars))
+
+FIRST_NC = NULL_CONTROL[0]
+
+
+def get_namespace(*names):
+    text = '.'.join(map(decode, names))
+
+    if FIRST_NC:
+        namespace = text.translate(FIRST_NC)
+    else:
+        encoded = text.encode(ENCODING)
+        namespace = encoded.translate(*NULL_CONTROL).decode(ENCODING)
+
+    return namespace
 
 
 def function_namespace(f, *args):
@@ -255,7 +265,7 @@ class Cache(object):
             zipped = zip(fetch_keys, version_data_list)
             self.cache.set_many(dict(zipped), **kwargs)
 
-        return fname, ''.join(version_data_list)
+        return fname, ''.join(map(decode, version_data_list))
 
     def _memoize_make_cache_key(self, make_name=None, decorated=None):
         """

@@ -9,7 +9,8 @@
 """
 # pylint: disable=range-builtin-not-iterating,filter-builtin-not-iterating
 
-from __future__ import absolute_import, division, print_function
+from __future__ import (
+    absolute_import, division, print_function, unicode_literals)
 
 import pickle
 
@@ -17,7 +18,6 @@ from itertools import chain
 from functools import partial
 from operator import contains
 
-from six import PY3
 from six.moves import filter
 
 from werkzeug.contrib.cache import (
@@ -213,8 +213,7 @@ class SpreadSASLMemcachedCache(SASLMemcachedCache):
         if value == self.MARKER:
             keys = self._genkeys(key)
             result = self.super.get_many(*keys)
-            filtered = (v for v in result if v is not None)
-            serialized = b''.join(filtered) if PY3 else ''.join(filtered)
+            serialized = b''.join(v for v in result if v is not None)
             value = pickle.loads(serialized) if serialized else None
 
         return value

@@ -6,7 +6,8 @@
 
     Provides unit tests.
 """
-from __future__ import absolute_import, division, print_function
+from __future__ import (
+    absolute_import, division, print_function, unicode_literals)
 
 import time
 import random
@@ -101,11 +102,21 @@ class TestCache(object):
         self.cache.add('ȟį', 'fööƀåř')
         nt.assert_equal(self.cache.get('ȟį'), 'ƕɛĺłö')
 
+    def test_add_bytes(self):
+        self.cache.add(b'hi', b'hello')
+        nt.assert_equal(self.cache.get(b'hi'), b'hello')
+
+        self.cache.add(b'hi', b'foobar')
+        nt.assert_equal(self.cache.get(b'hi'), b'hello')
+
     def test_delete(self):
         check_set_delete(self.cache, 'hi', 'hello')
 
     def test_delete_unicode(self):
         check_set_delete(self.cache, 'ȟį', 'ƕɛĺłö')
+
+    def test_delete_bytes(self):
+        check_set_delete(self.cache, b'hi', b'foobar')
 
     def test_memoize(self):
         @self.cache.memoize(5)
@@ -443,6 +454,13 @@ class TestFileSystemCache(TestCache):
         check_cache_type(self.cache, 'filesystem')
         check_cache_instance(self.cache, FileSystemCache)
 
+    def test_add_bytes(self):
+        self.cache.add(b'hi', 'hello')
+        nt.assert_equal(self.cache.get(b'hi'), 'hello')
+
+        self.cache.add(b'hi', b'foobar')
+        nt.assert_equal(self.cache.get(b'hi'), 'hello')
+
 
 if HAS_MEMCACHE:
     class TestMemcachedCache(TestCache):
@@ -514,6 +532,8 @@ if HAS_MEMCACHE:
             for client_name in AVAIL_MEMCACHES:
                 self.setup(client_name=client_name)
                 yield check_set_delete, self.cache, 'big', 'a', BIGINT
+                yield check_set_delete, self.cache, 'ƅıɠ', 'ą', BIGINT
+                yield check_set_delete, self.cache, b'big', b'a', BIGINT
                 yield check_too_big, self.cache, BIGGERINT, ValueError
                 self.teardown()
 else:
@@ -531,6 +551,12 @@ if HAS_REDIS:
         def test_dict_config(self):
             check_cache_type(self.cache, 'redis')
             check_cache_instance(self.cache, RedisCache)
+
+        def test_add_bytes(self):
+            pass
+
+        def test_delete_bytes(self):
+            pass
 
         def test_redis_url_default_db(self):
             rconn = self.client.connection_pool.get_connection('foo')
