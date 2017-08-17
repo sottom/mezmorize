@@ -27,7 +27,7 @@ from werkzeug.contrib.cache import _test_memcached_key
 from . import backends
 from .utils import DEF_THRESHOLD, DEF_DEFAULT_TIMEOUT, ENCODING, decode
 
-__version__ = '0.24.0'
+__version__ = '0.24.1'
 __title__ = 'mezmorize'
 __package_name__ = 'mezmorize'
 __author__ = 'Reuben Cummings'
