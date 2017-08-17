@@ -138,8 +138,9 @@ class Cache(object):
         kwargs = self.config['CACHE_OPTIONS']
         kwargs.setdefault('default_timeout', default_timeout)
 
-        if 'preferred_memcache' in kwargs and not self.is_memcached:
-            kwargs.pop('preferred_memcache')
+        if not self.is_memcached:
+            kwargs.pop('preferred_memcache', None)
+            kwargs.pop('connect_timeout', None)
 
         self.cache = cache_obj(self.config, *args, **kwargs)
 

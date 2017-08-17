@@ -37,10 +37,10 @@ except ImportError:
 CONFIG_LOOKUP = {
     'servers': 'CACHE_MEMCACHED_SERVERS',
     'threshold': 'CACHE_THRESHOLD',
-    'timeout': 'CACHE_TIMEOUT',
     'username': 'CACHE_MEMCACHED_USERNAME',
     'password': 'CACHE_MEMCACHED_PASSWORD',
-    'key_prefix': 'CACHE_KEY_PREFIX'}
+    'key_prefix': 'CACHE_KEY_PREFIX',
+    'timeout': 'connect_timeout'}
 
 
 def gen_defaults(*keys, **config):
