@@ -384,6 +384,7 @@ class Cache(object):
                     value = f(*args, **kwargs)
                     ckwargs = {'timeout': decorated.cache_timeout}
 
+                    # value is first for addCallback compatibility
                     def set_cache(value, key):
                         self.cache.set(key, value, **ckwargs)
                         return value
