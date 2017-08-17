@@ -44,8 +44,8 @@ DEF_MC_PORT = 11211
 DEF_REDIS_PORT = 6379
 
 ALL_MEMCACHES = (
-    ('pylibmc', pylibmc), ('pymemcache', pymemcache),
-    ('bmemcached', bmemcached))
+    ('pylibmc', pylibmc), ('bmemcached', bmemcached),
+    ('pymemcache', pymemcache))
 
 DEF_MC_SERVERS = '{}:{}'.format(DEF_MC_HOST, DEF_MC_PORT)
 MC_SERVERS = getenv('MEMCACHIER_SERVERS') or getenv('MEMCACHEDCLOUD_SERVERS')
@@ -98,7 +98,7 @@ def pgrep(process):
 
 
 HAS_MEMCACHE = (pylibmc or pymemcache or bmemcached) and pgrep('memcache')
-AVAIL_MEMCACHES = {k for k, v in ALL_MEMCACHES if HAS_MEMCACHE and v}
+AVAIL_MEMCACHES = [k for k, v in ALL_MEMCACHES if HAS_MEMCACHE and v]
 HAS_REDIS = redis and pgrep('redis')
 
 

@@ -7,13 +7,17 @@
 
     Provides mezmorize storage mechanisms
 """
-# pylint: disable=range-builtin-not-iterating
+# pylint: disable=range-builtin-not-iterating,filter-builtin-not-iterating
 
 from __future__ import absolute_import, division, print_function
 
 import pickle
 
 from itertools import chain
+from functools import partial
+from operator import contains
+
+from six.moves import filter
 
 from werkzeug.contrib.cache import (
     NullCache, SimpleCache, MemcachedCache as _MemcachedCache, FileSystemCache,
@@ -70,7 +74,7 @@ class MemcachedCache(_MemcachedCache):
             raise RuntimeError('No memcache module found.')
 
         compat_memcaches = kwargs.pop('compat_memcaches', AVAIL_MEMCACHES)
-        avail_memcaches = AVAIL_MEMCACHES.intersection(compat_memcaches)
+        avail_memcaches = set(AVAIL_MEMCACHES).intersection(compat_memcaches)
 
         if not avail_memcaches:
             raise RuntimeError('No compatible memcache module found.')
@@ -78,7 +82,8 @@ class MemcachedCache(_MemcachedCache):
         preferred_mc = kwargs.pop('preferred_memcache', 'pylibmc')
 
         if len(avail_memcaches) == 1 or preferred_mc not in avail_memcaches:
-            preferred_mc = avail_memcaches.pop()
+            filterer = partial(contains, avail_memcaches)
+            preferred_mc = next(filter(filterer, AVAIL_MEMCACHES))
 
         client = get_mc_client(preferred_mc, **kwargs)
         skwargs = {'default_timeout': default_timeout, 'key_prefix': key_prefix}
