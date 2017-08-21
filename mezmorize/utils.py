@@ -81,6 +81,7 @@ CACHE_CONFIGS = {
     }
 }
 
+HEROKU = getenv('HEROKU') or (getenv('DYNO') and getenv('HOME') == '/app')
 
 HEROKU_PROCESSES = {
     'postgres': ['DATABASE_URL'],
@@ -91,7 +92,7 @@ HEROKU_PROCESSES = {
 
 def pgrep(process):
     envs = HEROKU_PROCESSES.get(process, [])
-    any_env = any(map(getenv, envs))
+    any_env = HEROKU and any(map(getenv, envs))
     return any_env or call(['pgrep', process]) == 0
 
 
