@@ -29,7 +29,7 @@ from .utils import (
     DEF_THRESHOLD, DEF_DEFAULT_TIMEOUT, ENCODING, decode, get_cache_config,
     get_cache_type)
 
-__version__ = '0.24.2'
+__version__ = '0.25.0'
 __title__ = 'mezmorize'
 __package_name__ = 'mezmorize'
 __author__ = 'Reuben Cummings'
