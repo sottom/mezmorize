@@ -161,7 +161,6 @@ class Cache(object):
         except AttributeError:
             self.client_name = None
 
-
     def _gen_mapping(self, *args):
         for key in args:
             if _test_memcached_key(key):
