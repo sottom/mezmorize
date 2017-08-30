@@ -25,7 +25,9 @@ from six import PY3
 from werkzeug.contrib.cache import _test_memcached_key
 
 from . import backends
-from .utils import DEF_THRESHOLD, DEF_DEFAULT_TIMEOUT, ENCODING, decode
+from .utils import (
+    DEF_THRESHOLD, DEF_DEFAULT_TIMEOUT, ENCODING, decode, get_cache_config,
+    get_cache_type)
 
 __version__ = '0.24.2'
 __title__ = 'mezmorize'
@@ -153,6 +155,11 @@ class Cache(object):
             kwargs.pop('connect_timeout', None)
 
         self.cache = cache_obj(self.config, *args, **kwargs)
+
+        try:
+            self.client_name = self.cache.client_name
+        except AttributeError:
+            self.client_name = None
 
     def _gen_mapping(self, *args):
         for key in args:
@@ -557,3 +564,127 @@ class Cache(object):
                 " reliable, please use a function reference")
 
         self._memoize_version(f, delete=True)
+
+
+def get_cache(*args, **kwargs):
+    """Helper function to intelligently configure an appropriate cache
+
+    Kwargs:
+        cache_type (str): The type of cache backend to use. Default depends on
+            installed libraries and running servers.
+
+        spread (bool): Use spreadsaslmemcached if available. Default False.
+        preferred_memcache (str): Use this memcached client if available.
+            Default None.
+
+        cache_threshold (int): The max number of keys to store.
+        cache_options (dict): Passed as kwargs to the cache backend client.
+        connect_timeout (int): Max number of seconds to wait for response.
+            Default None, e.g., forever.
+
+        cache_default_timeout (int): Number of seconds to store cache result if
+            `timeout` is not set.
+
+    Returns:
+        decorator: an iterator of items
+
+    Example:
+        >>> cache = get_cache()
+        >>> cache.set('key', 'value')
+        >>> cache.get('key') == 'value'
+        True
+        >>> cache.delete('key')
+        >>> cache.get('key') is None
+        True
+        >>>
+        >>> if cache.client_name:
+        ...     cache.cache_type == 'memcached'
+        ...     cache.client_name == 'pylibmc'
+        ... else:
+        ...     cache.cache_type == 'simple'
+        ...     cache.client_name is None
+        True
+        True
+        >>>
+        >>> cache = get_cache(preferred_memcache='bmemcached')
+        >>>
+        >>> if cache.client_name:
+        ...     cache.client_name == 'bmemcached'
+        ... else:
+        ...     cache.client_name is None
+        True
+    """
+    _cache_type = kwargs.get('cache_type')
+    spread = kwargs.get('spread')
+    namespace = kwargs.get('namespace')
+    whitelist = {
+        'cache_default_timeout', 'cache_threshold', 'cache_options',
+        'cache_key_prefix'}
+
+    ckwargs = {k.upper(): v for k, v in kwargs.items() if k in whitelist}
+
+    keys = {'preferred_memcache', 'connect_timeout'}
+    extra_options = {k: v for k, v in kwargs.items() if k in keys}
+
+    if extra_options:
+        CACHE_OPTIONS = ckwargs.get('CACHE_OPTIONS', {})
+        CACHE_OPTIONS.update(extra_options)
+        ckwargs['CACHE_OPTIONS'] = CACHE_OPTIONS
+
+    cache_type = get_cache_type(cache=_cache_type, spread=spread)
+    config = get_cache_config(cache_type, **ckwargs)
+    return Cache(namespace=namespace, **config)
+
+
+def memoize(*args, **kwargs):
+    """Use this to cache the result of a function, taking its arguments into
+    account in the cache key.
+
+    `Memoization <http://en.wikipedia.org/wiki/Memoization>`_.
+
+    Kwargs:
+        timeout (int): Number of seconds to store cache result. Default None,
+            e.g., forever. Note: If this is not set, it is overridden by
+            `cache_default_timeout`.
+
+        unless (func): Don't use cache if this callable is true. Default None.
+
+    Returns:
+        decorator: a memoizer
+
+    Example:
+        >>> import random
+        >>>
+        >>> get_rand = lambda: random.random()
+        >>> rand_value = get_rand()
+        >>> rand_value == get_rand()
+        False
+        >>> memoizer = memoize(timeout=30)
+        >>> memoized_get_rand = memoizer(get_rand)
+        >>> memoized_rand_value = memoized_get_rand()
+        >>> memoized_rand_value == memoized_get_rand()
+        True
+        >>>
+        >>> if memoizer.client_name:
+        ...     memoizer.cache_type == 'memcached'
+        ...     memoizer.client_name == 'pylibmc'
+        ... else:
+        ...     memoizer.cache_type == 'simple'
+        ...     memoizer.client_name is None
+        True
+        True
+        >>>
+        >>> memoizer = memoize(preferred_memcache='bmemcached')
+        >>>
+        >>> if memoizer.client_name:
+        ...     memoizer.client_name == 'bmemcached'
+        ... else:
+        ...     memoizer.client_name is None
+        True
+    """
+    cache = get_cache(*args, **kwargs)
+    mkwargs = {k: v for k, v in kwargs.items() if k in {'timeout', 'unless'}}
+    memoizer = cache.memoize(*args, **mkwargs)
+    memoizer.cache_type = cache.cache_type
+    memoizer.client_name = cache.client_name
+    return memoizer
