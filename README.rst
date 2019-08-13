@@ -18,3 +18,7 @@ License
     :target: https://pypi.python.org/pypi/mezmorize
 
 .. _BSD License: http://opensource.org/licenses/BSD-3-Clause
+
+Environment Variables
+---------------------
+- *CACHE_DIR*: the directory your cache will be stored in. The default is the following python code: `os.path.abspath(os.path.dirname(__file__))` 

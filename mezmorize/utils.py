@@ -10,7 +10,7 @@
 from __future__ import (
     absolute_import, division, print_function, unicode_literals)
 
-from os import getenv
+from os import getenv, path
 from subprocess import call
 from copy import copy
 
@@ -61,7 +61,7 @@ CACHE_CONFIGS = {
     'redis': {'CACHE_TYPE': 'redis', 'CACHE_REDIS_URL': REDIS_URL},
     'filesystem': {
         'CACHE_TYPE': 'filesystem',
-        'CACHE_DIR': getenv('CACHE_DIR')
+        'CACHE_DIR': getenv('CACHE_DIR', default=path.abspath(path.dirname(__file__)))
     },
     'memcached': {
         'CACHE_TYPE': 'memcached',
@@ -102,7 +102,7 @@ HAS_REDIS = redis and pgrep('redis')
 
 
 def get_cache_type(cache=None, spread=False, **kwargs):
-    cache_dir = kwargs.get('cache_dir', getenv('CACHE_DIR'))
+    cache_dir = kwargs.get('cache_dir', getenv('CACHE_DIR', default=path.abspath(path.dirname(__file__))))
 
     if HAS_REDIS and HAS_MEMCACHE and not cache:
         cache = 'memcached'
