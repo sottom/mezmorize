@@ -34,7 +34,7 @@ try:
 except ImportError:
     redis = None
 
-CACHE_DIR_DEFAULT = path.join(path.abspath(path.dirname(__file__)), 'cache')
+DEF_CACHE_DIR = path.join(path.abspath(path.dirname(__file__)), 'cache')
 DEF_THRESHOLD = 500
 DEF_DEFAULT_TIMEOUT = 300
 DEF_MC_HOST = DEF_REDIS_HOST = 'localhost'
@@ -62,7 +62,7 @@ CACHE_CONFIGS = {
     'redis': {'CACHE_TYPE': 'redis', 'CACHE_REDIS_URL': REDIS_URL},
     'filesystem': {
         'CACHE_TYPE': 'filesystem',
-        'CACHE_DIR': getenv('CACHE_DIR', default=CACHE_DIR_DEFAULT)
+        'CACHE_DIR': getenv('CACHE_DIR', default=DEF_CACHE_DIR)
     },
     'memcached': {
         'CACHE_TYPE': 'memcached',
@@ -103,7 +103,7 @@ HAS_REDIS = redis and pgrep('redis')
 
 
 def get_cache_type(cache=None, spread=False, **kwargs):
-    cache_dir = kwargs.get('cache_dir', getenv('CACHE_DIR', default=CACHE_DIR_DEFAULT))
+    cache_dir = kwargs.get('cache_dir', getenv('CACHE_DIR', default=DEF_CACHE_DIR))
 
     if HAS_REDIS and HAS_MEMCACHE and not cache:
         cache = 'memcached'
